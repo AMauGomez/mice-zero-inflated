@@ -1,16 +1,17 @@
 ---
 title: "Multiple imputation of zero-inflated counts with MICE"
-subtitle: "PMM vs zero-inflated Poisson vs zero-inflated negative binomial"
+subtitle: "PMM vs zero-inflated Poisson vs zero-inflated negative binomial on 583,678 COVID-19 patients"
 author: "Aaron Mauricio Gómez Jiménez"
 date: "2025"
 format:
   html:
     theme: cosmo
     toc: true
+    toc-depth: 2
     code-fold: true
     code-tools: true
 execute:
-  echo: true
+  echo: false
   warning: false
   message: false
 ---
@@ -19,91 +20,163 @@ execute:
 #| include: false
 library(readr); library(dplyr); library(knitr)
 thesis <- read_csv("results/thesis/imputation_results_thesis.csv", show_col_types = FALSE)
+spread <- read_csv("results/thesis/real_data_distribution_check.csv", show_col_types = FALSE)
+cm     <- read_csv("results/thesis/count_models_thesis.csv", show_col_types = FALSE)
 demo   <- read_csv("results/demo/imputation_metrics.csv", show_col_types = FALSE)
-models <- read_csv("results/demo/count_model_comparison.csv", show_col_types = FALSE)
 ```
+
+BSc thesis in Mathematics, UNAM (2025). Supervisor: Dr. Ruth Selene Fuentes García.
+[Thesis (TESIUNAM)](https://tesiunamdocumentos.dgb.unam.mx/ptd2025/abr_jun/0872591/Index.html) · [Code on GitHub](https://github.com/AMauGomez/mice-zero-inflated) · [Original analysis scripts](https://github.com/AMauGomez/mice-zero-inflated/tree/main/thesis_code)
 
 ## Summary
 
-- **The data:** Mexico's COVID-19 surveillance system (SISVER), January–June 2020: **583,678 patients and 113 variables**.
-- **The variable to impute:** *days with symptoms before admission*. It is overdispersed and has an excess of **structural zeros**, recorded when the onset date of severely ill patients could not be obtained.
-- **The comparison:** three MICE imputation methods (PMM, ZIP and ZINB), tested by hiding 5% and 10% of known values and checking the imputations against the truth.
+**Question.** When the variable to impute has far more zeros than a count distribution allows, do zero-inflated imputation models beat Predictive Mean Matching (PMM) inside MICE?
 
-**Main findings:**
+**Data.** Mexico's COVID-19 respiratory-disease surveillance system (SISVER), January–June 2020: **583,678 patients, 113 variables**. The variable imputed is *days with symptoms before admission* (mean 3.7, variance 10.9, 15.9% zeros).
 
-- On the real data, **ZIP gave the lowest error (−29% MSE vs PMM)**.
-- **ZINB recovered the most structural zeros (+38% vs PMM).**
-- **Both count models took 5–7 times longer** to impute.
-- A simulation study shows that ZIP's lower MSE comes from **imputations that are too narrow**. Lowest MSE is not the same as the best imputation.
+**Findings.**
 
-## 1. Why a zero-inflated model?
+- **ZIP** gave the lowest error: **−29% MSE vs PMM**.
+- **ZINB** recovered the most zeros: **+38% vs PMM**.
+- Both count models took **5–7 times longer** than PMM.
+- A second look at the saved imputations shows that ZIP's low MSE comes from **imputations that are too narrow** (about half the real variance). Lowest MSE is not the same as the best imputation.
+
+## 1. The problem
+
+Days with symptoms is the admission date minus the symptom-onset date. Its zeros come from two sources that cannot be separated in the data:
+
+- **True zeros:** confirmed patients without symptoms.
+- **Missing values in disguise:** when a patient arrived too ill to answer the intake questionnaire, the onset date was often filled in with the admission date.
+
+Many other variables were incomplete too, so the problem calls for **multivariate** multiple imputation, with a model for the target variable that can handle excess zeros.
+
+## 2. Data preparation
+
+- 113 → 61 → 44 numeric variables. Removed variables that did not apply to every patient (pregnancy, travel, death dates, hospital coordinates); converted yes/no items to binary.
+- Recoded "unknown" answers and unusable lab results (rejected, not received, did not amplify…) as missing, so MICE could impute them.
+- Before masking, **1.65 million cells (4.6%)** were missing. Intubation status was the worst-recorded variable.
+
+![Missing-data pattern, variables 1–30 (thesis figure 5.1).](figures/thesis/missingness_pattern.png)
+
+## 3. Which distribution?
 
 ```{r}
-#| fig-cap: "Simulated outcome with the same structure as the real one."
-include_graphics("figures/outcome_distribution.png")
+#| fig-cap: "Days with symptoms, all 583,678 patients (thesis figure 5.7)."
+include_graphics("figures/thesis/days_symptoms_histogram.png")
 ```
 
-The thesis checked the count models in sequence. Here is the same check on the simulated cohort:
+- The variance is three times the mean, so Poisson is out.
+- Chi-square goodness-of-fit tests reject both Poisson (λ = 3.68) and negative binomial (size = 1.80).
+- The negative binomial adds zeros but still misses the shape:
 
 ```{r}
-kable(models, col.names = c("Model", "AIC", "Dispersion ratio", "Predicted zeros",
-                            "Observed zeros", "Predicted / observed zeros"))
+#| fig-cap: "Empirical (black), Poisson (orange) and negative binomial (blue) densities (thesis figure 5.8)."
+include_graphics("figures/thesis/empirical_vs_poisson_nb.png")
 ```
 
-**How to read it:**
-- **Poisson** badly underpredicts zeros and is overdispersed.
+## 4. Model building
+
+The imputation models were built as regression models first:
+
+1. **Candidate predictors** from correlograms, PCA and subject-matter judgement.
+2. **Zero part:** logistic regression for "zero days", stepwise selection by AIC.
+3. **Count part:** Poisson and negative binomial regressions, stepwise by AIC; checks for multicollinearity, residuals and deviance; 10-fold cross-validation.
+4. **Combined** into ZIP and ZINB, each part with its own predictors, and tested for dispersion and zero inflation (DHARMa simulated residuals).
+
+```{r}
+cm |>
+  select(model, n_variables, RMSE_cv10, dispersion_ratio, zero_ratio) |>
+  kable(col.names = c("Model", "Variables", "CV RMSE (10-fold)", "Dispersion ratio",
+                      "Predicted / observed zeros"))
+```
+
+- **Poisson** is overdispersed and predicts only a quarter of the zeros.
 - **Negative binomial** fixes the dispersion but still misses zeros.
-- **ZIP** gets the zeros right but stays overdispersed.
-- **ZINB** fixes both. Same pattern as in the original data.
+- **ZIP** gets the zeros but stays overdispersed.
+- **ZINB** fixes both, with fewer predictors in the zero part.
 
-## 2. Results on the original data
+## 5. MICE design
+
+- **Covariates:** every other incomplete variable imputed with PMM, using a hand-built predictor matrix.
+- **Target variable:** imputed with `mice` (PMM) or `countimp` (ZIP, ZINB). The predictor matrices carry the model-building results: **1** = predictor in both parts, **2** = count part only, **3** = zero part only.
+- **Masking:** 5% and 10% of the observed values hidden at random and kept aside as the truth.
+- **Imputations and iterations:** m = iterations = 5 (5% missing) and 10 (10% missing).
+
+## 6. Convergence
+
+Trace plots of the mean and standard deviation of the imputed values show the chains mixing without trends for every method and scenario:
+
+![ZIP, 10% missing (thesis figure 5.27).](figures/thesis/trace_zip_10.png)
+
+![ZINB, 10% missing (thesis figure 5.31).](figures/thesis/trace_zinb_10.png)
+
+Imputed (red) vs observed (blue) densities, 10% missing:
+
+![Thesis figures 5.25, 5.29 and 5.33.](figures/thesis/imputed_vs_observed_densities.png)
+
+## 7. Results
 
 ```{r}
 include_graphics("figures/thesis_results.png")
 thesis |>
-  select(method, missing_pct, m, MSE, RMSE, MAE, zeros_recovered_pct, imputation_time) |>
-  kable(col.names = c("Method", "% missing", "m", "MSE", "RMSE", "MAE",
-                      "Zeros recovered (%)", "Time"))
+  select(method, missing_pct, MSE, RMSE, MAE, exact_match_pct, zeros_recovered_pct,
+         nonzero_exact_pct, imputation_time) |>
+  kable(col.names = c("Method", "% missing", "MSE", "RMSE", "MAE", "Exact matches (%)",
+                      "Zeros recovered (%)", "Non-zeros exact (%)", "Time"))
 ```
 
-## 3. Simulation: why ZIP wins on MSE
+- **ZIP:** lowest MSE, RMSE and MAE in both scenarios, and the most exact matches among non-zero values.
+- **ZINB:** best at recovering zeros in both scenarios.
+- **PMM:** 4–7× faster but the least accurate. A reasonable first pass, not a final answer.
+- Imputation time grew faster than the number of missing values; at 15% the count models were projected at ~19–24 hours.
 
-An imputation is a **random draw** from a predictive distribution. Its MSE against the truth is
+## 8. A second look: lowest MSE ≠ best imputation
+
+ZINB fitted the data best (section 4), yet ZIP had the lowest MSE. An imputation is a **random draw** from a predictive distribution, so its MSE against the truth is
 
 $$
-\text{MSE} = \underbrace{(\text{bias})^2}_{\text{model}} + \operatorname{Var}(Y) + \operatorname{Var}(\tilde Y),
+E\big[(Y - \tilde Y)^2\big] = \underbrace{(E\,Y - E\,\tilde Y)^2}_{\text{bias}} + \operatorname{Var}(Y) + \operatorname{Var}(\tilde Y).
 $$
 
-so a method whose draws vary **less** scores better, even when its model is wrong. In the simulation the true model is ZINB:
+A method whose draws vary **less** scores better, even when its model is wrong. Going back to the saved imputations confirms it:
+
+```{r}
+spread |>
+  select(method, missing_pct, MSE, variance_ratio, max_imputed, max_true) |>
+  kable(col.names = c("Method", "% missing", "MSE", "Var(imputed) / Var(true)",
+                      "Largest imputed", "Largest true"))
+```
 
 ```{r}
 include_graphics("figures/mse_vs_variance.png")
-demo |>
-  select(missing_pct, method, MSE, MAE, zeros_recovered_pct, variance_ratio, seconds) |>
-  kable(digits = 2, col.names = c("% missing", "Method", "MSE", "MAE",
-                                  "Zeros recovered (%)", "Variance ratio", "Seconds"))
 ```
 
-**What the simulation shows:**
-- ZIP's imputations keep only about **half of the real variance**. Analyses that use them would report standard errors and confidence intervals that are too small.
-- ZINB and PMM keep the spread.
+- **ZIP** keeps only about **half of the real variance** and never imputes more than 18 days, while true values reach 115. Analyses on those data would get standard errors that are too small.
+- **ZINB** and **PMM** keep most of the spread.
+- A simulation where ZINB is the true model (right panel) reproduces the pattern.
 
-**Conclusion:** choose imputation models for **distributional fidelity and valid inference** (Rubin's rules), not only for point error.
+**Lesson:** judge an imputation method by whether it preserves the distribution and supports valid inference, not by point-error metrics alone.
 
-## 4. Implementation
+## 9. Reproducible demo
 
-The thesis used `countimp`. The demo uses a small reimplementation with the same logic: bootstrap the observed cases, fit `pscl::zeroinfl`, then draw a structural-zero indicator and a count.
+The SISVER microdata are not public. The repository runs the same pipeline, with `countimp`'s `zip` and `zinb` methods, on a simulated cohort with the same structure (`Rscript run_all.R`, about 2 minutes):
 
 ```{r}
-#| echo: false
+demo |>
+  select(missing_pct, method, MSE, zeros_recovered_pct, variance_ratio, max_imputed) |>
+  kable(digits = 2, col.names = c("% missing", "Method", "MSE", "Zeros recovered (%)",
+                                  "Variance ratio", "Largest imputed"))
+```
+
+`countimp` is on GitHub but not on CRAN. If it is not installed, the demo falls back to a short stand-in that follows the same steps:
+
+```{r}
 #| class-output: r
 cat(readLines("R/03_imputation_methods.R"), sep = "\n")
 ```
 
-Full code: [github.com/AMauGomez/mice-zero-inflated](https://github.com/AMauGomez/mice-zero-inflated)
+## Notes and limitations
 
-## Limitations
-
-- **The masking was MCAR.** Real missingness in surveillance data is probably MAR or MNAR (sicker patients have less complete records).
-- **The thesis scored the first completed dataset.** The demo averages over all *m* imputations.
-- **The simulated data reproduce the structure of the real data, not its exact values.** Demo numbers are not comparable with the thesis numbers.
+- **Masking mechanism.** The thesis describes the masking as MAR. The masked rows were a simple random sample, the MCAR special case. Real missingness in surveillance data is likely MAR or MNAR.
+- **Exact-match percentages** are corrected here: the thesis table divided by twice the number of masked values. Counts, errors and rankings are unchanged.
+- **One completed dataset scored.** The thesis scripts evaluate the first imputed dataset; the demo averages over all *m*.

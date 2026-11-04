@@ -29,17 +29,24 @@ p2 <- ggplot(long, aes(missing, value, fill = method)) +
   theme_minimal(base_size = 12) + theme(legend.position = "top")
 ggsave("figures/thesis_results.png", p2, width = 8, height = 4.2, dpi = 150)
 
-# 3. Demo: point accuracy (MSE) vs distributional fidelity (variance ratio)
+# 3. Point accuracy (MSE) vs distributional fidelity (variance ratio):
+#    thesis imputations on the real data, and the simulation
+real <- readr::read_csv("results/thesis/real_data_distribution_check.csv", show_col_types = FALSE) |>
+  dplyr::transmute(source = "Thesis: real SISVER data", method, missing_pct, MSE, variance_ratio)
 demo <- readr::read_csv("results/demo/imputation_metrics.csv", show_col_types = FALSE) |>
+  dplyr::transmute(source = "Simulation: ZINB is the true model", method, missing_pct, MSE, variance_ratio)
+both <- dplyr::bind_rows(real, demo) |>
   dplyr::mutate(method = factor(method, c("PMM", "ZIP", "ZINB")),
+                source = factor(source, c("Thesis: real SISVER data", "Simulation: ZINB is the true model")),
                 missing = factor(paste0(missing_pct, "% missing"), c("5% missing", "10% missing")))
-p3 <- ggplot(demo, aes(variance_ratio, MSE, colour = method, shape = missing)) +
+p3 <- ggplot(both, aes(variance_ratio, MSE, colour = method, shape = missing)) +
   geom_vline(xintercept = 1, linetype = 2, colour = "grey50") +
   geom_point(size = 4) +
+  facet_wrap(~source, scales = "free_y") +
+  scale_x_continuous(limits = c(0.3, 1.1)) +
   scale_colour_manual(values = pal) +
   labs(x = "Variance of imputed / variance of true values (1 = spread preserved)",
        y = "MSE", colour = NULL, shape = NULL,
-       title = "Lowest MSE is not the same as the best imputation",
-       subtitle = "Simulated data where ZINB is the true model") +
-  theme_minimal(base_size = 12)
-ggsave("figures/mse_vs_variance.png", p3, width = 7, height = 4.5, dpi = 150)
+       title = "Lowest MSE is not the same as the best imputation") +
+  theme_minimal(base_size = 12) + theme(legend.position = "top")
+ggsave("figures/mse_vs_variance.png", p3, width = 9, height = 4.5, dpi = 150)

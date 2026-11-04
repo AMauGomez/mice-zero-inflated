@@ -1,30 +1,64 @@
-# Custom MICE imputation methods for zero-inflated counts ----------------------
+# Zero-inflated imputation methods for mice ------------------------------------
 #
-# The thesis used the `countimp` package (methods "zip" and "zinb"). This file
-# is a small reimplementation of the same idea so the demo runs on current R:
+# The thesis imputed the outcome with the `countimp` package (Kleinke & Reinecke),
+# methods "zip" and "zinb". countimp is not on CRAN; install it with
+#   remotes::install_github("kkleinke/countimp")
+# If it is installed, this demo uses countimp's own methods. If not, it falls
+# back to a short stand-in that follows the same steps.
 #
-#   1. Bootstrap the observed cases (approximates draws from the posterior
-#      of the model parameters, so between-imputation variance is kept).
-#   2. Fit a zero-inflated Poisson or negative binomial model on the bootstrap sample.
-#   3. For each missing case, draw a structural-zero indicator from the zero
-#      part and, if it is not a structural zero, a count from the count part.
+# Both read the predictor matrix with countimp's convention, as in the thesis:
 #
-# mice finds these functions by name: method = "zip_boot" calls mice.impute.zip_boot().
+#   predictor matrix code 1 = covariate in both parts of the model
+#                         2 = covariate in the count part only
+#                         3 = covariate in the zero-inflation part only
+#
+# so the count process and the zero process can have different covariates
+# (in the thesis, chosen from correlograms, PCA, stepwise AIC and 10-fold CV).
+#
+# Each imputation:
+#   1. fits a zero-inflated Poisson or negative binomial model (pscl::zeroinfl)
+#      to the observed cases, with separate count and zero-part formulas;
+#   2. draws the coefficients from their approximate posterior
+#      N(beta_hat, Var(beta_hat)), so parameter uncertainty is propagated
+#      (countimp's default, draw = "bayes");
+#   3. for each missing case, draws "zero" yes/no and, if no, a count.
 
-impute_zi <- function(y, ry, x, wy, dist) {
-  if (is.null(wy)) wy <- !ry
-  obs <- data.frame(y = y[ry], x[ry, , drop = FALSE])
-  boot <- obs[sample(nrow(obs), replace = TRUE), , drop = FALSE]
-  fit <- pscl::zeroinfl(y ~ ., data = boot, dist = dist)
+if (requireNamespace("countimp", quietly = TRUE)) {
+  IMPUTATION_ENGINE <- "countimp"
+  mice.impute.zip  <- getFromNamespace("mice.impute.zip",  "countimp")
+  mice.impute.zinb <- getFromNamespace("mice.impute.zinb", "countimp")
+} else {
+  IMPUTATION_ENGINE <- "stand-in (countimp not installed)"
 
-  new <- data.frame(x[wy, , drop = FALSE])
-  p_zero <- predict(fit, newdata = new, type = "zero")
-  mu     <- predict(fit, newdata = new, type = "count")
-  n <- sum(wy)
+  impute_zi <- function(y, ry, x, wy, type, dist) {
+    if (is.null(wy)) wy <- !ry
+    if (is.null(type)) type <- rep(1, ncol(x))
+    x <- as.data.frame(x)
+    count_vars <- colnames(x)[type %in% c(1, 2)]
+    zero_vars  <- colnames(x)[type %in% c(1, 3)]
+    rhs <- function(v) if (length(v)) paste(v, collapse = " + ") else "1"
+    f <- as.formula(paste("y ~", rhs(count_vars), "|", rhs(zero_vars)))
 
-  counts <- if (dist == "poisson") rpois(n, mu) else rnbinom(n, size = fit$theta, mu = mu)
-  as.integer(ifelse(rbinom(n, 1, p_zero) == 1, 0L, counts))
+    obs <- data.frame(y = y[ry], x[ry, , drop = FALSE])
+    fit <- pscl::zeroinfl(f, data = obs, dist = dist)
+
+    # Draw the coefficients from N(beta_hat, V)
+    beta <- MASS::mvrnorm(1, coef(fit), vcov(fit))
+    fit$coefficients$count <- beta[startsWith(names(beta), "count_")]
+    fit$coefficients$zero  <- beta[startsWith(names(beta), "zero_")]
+    names(fit$coefficients$count) <- sub("^count_", "", names(fit$coefficients$count))
+    names(fit$coefficients$zero)  <- sub("^zero_",  "", names(fit$coefficients$zero))
+
+    new    <- x[wy, , drop = FALSE]
+    p_zero <- predict(fit, newdata = new, type = "zero")
+    mu     <- predict(fit, newdata = new, type = "count")
+    n <- sum(wy)
+    counts <- if (dist == "poisson") rpois(n, mu) else rnbinom(n, size = fit$theta, mu = mu)
+    as.integer(ifelse(rbinom(n, 1, p_zero) == 1, 0L, counts))
+  }
+
+  mice.impute.zip  <- function(y, ry, x, wy = NULL, type = NULL, ...) impute_zi(y, ry, x, wy, type, "poisson")
+  mice.impute.zinb <- function(y, ry, x, wy = NULL, type = NULL, ...) impute_zi(y, ry, x, wy, type, "negbin")
 }
 
-mice.impute.zip_boot  <- function(y, ry, x, wy = NULL, ...) impute_zi(y, ry, x, wy, "poisson")
-mice.impute.zinb_boot <- function(y, ry, x, wy = NULL, ...) impute_zi(y, ry, x, wy, "negbin")
+cat("Zero-inflated imputation engine:", IMPUTATION_ENGINE, "\n")

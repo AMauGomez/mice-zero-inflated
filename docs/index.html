@@ -109,13 +109,18 @@ window.Quarto = {
   <nav id="TOC" role="doc-toc" class="toc-active">
     <h2 id="toc-title">Table of contents</h2>
    
-  <ul>
+  <ul class="collapse">
   <li><a href="#summary" id="toc-summary" class="nav-link active" data-scroll-target="#summary">Summary</a></li>
-  <li><a href="#why-a-zero-inflated-model" id="toc-why-a-zero-inflated-model" class="nav-link" data-scroll-target="#why-a-zero-inflated-model">1. Why a zero-inflated model?</a></li>
-  <li><a href="#results-on-the-original-data" id="toc-results-on-the-original-data" class="nav-link" data-scroll-target="#results-on-the-original-data">2. Results on the original data</a></li>
-  <li><a href="#simulation-why-zip-wins-on-mse" id="toc-simulation-why-zip-wins-on-mse" class="nav-link" data-scroll-target="#simulation-why-zip-wins-on-mse">3. Simulation: why ZIP wins on MSE</a></li>
-  <li><a href="#implementation" id="toc-implementation" class="nav-link" data-scroll-target="#implementation">4. Implementation</a></li>
-  <li><a href="#limitations" id="toc-limitations" class="nav-link" data-scroll-target="#limitations">Limitations</a></li>
+  <li><a href="#the-problem" id="toc-the-problem" class="nav-link" data-scroll-target="#the-problem">1. The problem</a></li>
+  <li><a href="#data-preparation" id="toc-data-preparation" class="nav-link" data-scroll-target="#data-preparation">2. Data preparation</a></li>
+  <li><a href="#which-distribution" id="toc-which-distribution" class="nav-link" data-scroll-target="#which-distribution">3. Which distribution?</a></li>
+  <li><a href="#model-building" id="toc-model-building" class="nav-link" data-scroll-target="#model-building">4. Model building</a></li>
+  <li><a href="#mice-design" id="toc-mice-design" class="nav-link" data-scroll-target="#mice-design">5. MICE design</a></li>
+  <li><a href="#convergence" id="toc-convergence" class="nav-link" data-scroll-target="#convergence">6. Convergence</a></li>
+  <li><a href="#results" id="toc-results" class="nav-link" data-scroll-target="#results">7. Results</a></li>
+  <li><a href="#a-second-look-lowest-mse-best-imputation" id="toc-a-second-look-lowest-mse-best-imputation" class="nav-link" data-scroll-target="#a-second-look-lowest-mse-best-imputation">8. A second look: lowest MSE ≠ best imputation</a></li>
+  <li><a href="#reproducible-demo" id="toc-reproducible-demo" class="nav-link" data-scroll-target="#reproducible-demo">9. Reproducible demo</a></li>
+  <li><a href="#notes-and-limitations" id="toc-notes-and-limitations" class="nav-link" data-scroll-target="#notes-and-limitations">Notes and limitations</a></li>
   </ul>
 </nav>
 </div>
@@ -123,8 +128,8 @@ window.Quarto = {
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<div class="quarto-title-block"><div><h1 class="title">Multiple imputation of zero-inflated counts with MICE</h1><button type="button" class="btn code-tools-button dropdown-toggle" id="quarto-code-tools-menu" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi"></i> Code</button><ul class="dropdown-menu dropdown-menu-end" aria-labelelledby="quarto-code-tools-menu"><li><a id="quarto-show-all-code" class="dropdown-item" href="javascript:void(0)" role="button">Show All Code</a></li><li><a id="quarto-hide-all-code" class="dropdown-item" href="javascript:void(0)" role="button">Hide All Code</a></li><li><hr class="dropdown-divider"></li><li><a id="quarto-view-source" class="dropdown-item" href="javascript:void(0)" role="button">View Source</a></li></ul></div></div>
-<p class="subtitle lead">PMM vs zero-inflated Poisson vs zero-inflated negative binomial</p>
+<div class="quarto-title-block"><div><h1 class="title">Multiple imputation of zero-inflated counts with MICE</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+<p class="subtitle lead">PMM vs zero-inflated Poisson vs zero-inflated negative binomial on 583,678 COVID-19 patients</p>
 </div>
 
 
@@ -153,110 +158,173 @@ window.Quarto = {
 </header>
 
 
+<p>BSc thesis in Mathematics, UNAM (2025). Supervisor: Dr.&nbsp;Ruth Selene Fuentes García. <a href="https://tesiunamdocumentos.dgb.unam.mx/ptd2025/abr_jun/0872591/Index.html">Thesis (TESIUNAM)</a> · <a href="https://github.com/AMauGomez/mice-zero-inflated">Code on GitHub</a> · <a href="https://github.com/AMauGomez/mice-zero-inflated/tree/main/thesis_code">Original analysis scripts</a></p>
 <section id="summary" class="level2">
 <h2 class="anchored" data-anchor-id="summary">Summary</h2>
+<p><strong>Question.</strong> When the variable to impute has far more zeros than a count distribution allows, do zero-inflated imputation models beat Predictive Mean Matching (PMM) inside MICE?</p>
+<p><strong>Data.</strong> Mexico’s COVID-19 respiratory-disease surveillance system (SISVER), January–June 2020: <strong>583,678 patients, 113 variables</strong>. The variable imputed is <em>days with symptoms before admission</em> (mean 3.7, variance 10.9, 15.9% zeros).</p>
+<p><strong>Findings.</strong></p>
 <ul>
-<li><strong>The data:</strong> Mexico’s COVID-19 surveillance system (SISVER), January–June 2020: <strong>583,678 patients and 113 variables</strong>.</li>
-<li><strong>The variable to impute:</strong> <em>days with symptoms before admission</em>. It is overdispersed and has an excess of <strong>structural zeros</strong>, recorded when the onset date of severely ill patients could not be obtained.</li>
-<li><strong>The comparison:</strong> three MICE imputation methods (PMM, ZIP and ZINB), tested by hiding 5% and 10% of known values and checking the imputations against the truth.</li>
-</ul>
-<p><strong>Main findings:</strong></p>
-<ul>
-<li>On the real data, <strong>ZIP gave the lowest error (−29% MSE vs PMM)</strong>.</li>
-<li><strong>ZINB recovered the most structural zeros (+38% vs PMM).</strong></li>
-<li><strong>Both count models took 5–7 times longer</strong> to impute.</li>
-<li>A simulation study shows that ZIP’s lower MSE comes from <strong>imputations that are too narrow</strong>. Lowest MSE is not the same as the best imputation.</li>
+<li><strong>ZIP</strong> gave the lowest error: <strong>−29% MSE vs PMM</strong>.</li>
+<li><strong>ZINB</strong> recovered the most zeros: <strong>+38% vs PMM</strong>.</li>
+<li>Both count models took <strong>5–7 times longer</strong> than PMM.</li>
+<li>A second look at the saved imputations shows that ZIP’s low MSE comes from <strong>imputations that are too narrow</strong> (about half the real variance). Lowest MSE is not the same as the best imputation.</li>
 </ul>
 </section>
-<section id="why-a-zero-inflated-model" class="level2">
-<h2 class="anchored" data-anchor-id="why-a-zero-inflated-model">1. Why a zero-inflated model?</h2>
+<section id="the-problem" class="level2">
+<h2 class="anchored" data-anchor-id="the-problem">1. The problem</h2>
+<p>Days with symptoms is the admission date minus the symptom-onset date. Its zeros come from two sources that cannot be separated in the data:</p>
+<ul>
+<li><strong>True zeros:</strong> confirmed patients without symptoms.</li>
+<li><strong>Missing values in disguise:</strong> when a patient arrived too ill to answer the intake questionnaire, the onset date was often filled in with the admission date.</li>
+</ul>
+<p>Many other variables were incomplete too, so the problem calls for <strong>multivariate</strong> multiple imputation, with a model for the target variable that can handle excess zeros.</p>
+</section>
+<section id="data-preparation" class="level2">
+<h2 class="anchored" data-anchor-id="data-preparation">2. Data preparation</h2>
+<ul>
+<li>113 → 61 → 44 numeric variables. Removed variables that did not apply to every patient (pregnancy, travel, death dates, hospital coordinates); converted yes/no items to binary.</li>
+<li>Recoded “unknown” answers and unusable lab results (rejected, not received, did not amplify…) as missing, so MICE could impute them.</li>
+<li>Before masking, <strong>1.65 million cells (4.6%)</strong> were missing. Intubation status was the worst-recorded variable.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="figures/thesis/missingness_pattern.png" class="img-fluid figure-img"></p>
+<figcaption>Missing-data pattern, variables 1–30 (thesis figure 5.1).</figcaption>
+</figure>
+</div>
+</section>
+<section id="which-distribution" class="level2">
+<h2 class="anchored" data-anchor-id="which-distribution">3. Which distribution?</h2>
 <div class="cell">
-<details class="code-fold">
-<summary>Code</summary>
-<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/outcome_distribution.png"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</details>
 <div class="cell-output-display">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><img src="figures/outcome_distribution.png" class="img-fluid figure-img" width="525"></p>
-<figcaption>Simulated outcome with the same structure as the real one.</figcaption>
+<p><img src="figures/thesis/days_symptoms_histogram.png" class="img-fluid figure-img" width="695"></p>
+<figcaption>Days with symptoms, all 583,678 patients (thesis figure 5.7).</figcaption>
 </figure>
 </div>
 </div>
 </div>
-<p>The thesis checked the count models in sequence. Here is the same check on the simulated cohort:</p>
+<ul>
+<li>The variance is three times the mean, so Poisson is out.</li>
+<li>Chi-square goodness-of-fit tests reject both Poisson (λ = 3.68) and negative binomial (size = 1.80).</li>
+<li>The negative binomial adds zeros but still misses the shape:</li>
+</ul>
 <div class="cell">
-<details class="code-fold">
-<summary>Code</summary>
-<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(models, <span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"Model"</span>, <span class="st">"AIC"</span>, <span class="st">"Dispersion ratio"</span>, <span class="st">"Predicted zeros"</span>,</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                            <span class="st">"Observed zeros"</span>, <span class="st">"Predicted / observed zeros"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</details>
+<div class="cell-output-display">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="figures/thesis/empirical_vs_poisson_nb.png" class="img-fluid figure-img" width="660"></p>
+<figcaption>Empirical (black), Poisson (orange) and negative binomial (blue) densities (thesis figure 5.8).</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="model-building" class="level2">
+<h2 class="anchored" data-anchor-id="model-building">4. Model building</h2>
+<p>The imputation models were built as regression models first:</p>
+<ol type="1">
+<li><strong>Candidate predictors</strong> from correlograms, PCA and subject-matter judgement.</li>
+<li><strong>Zero part:</strong> logistic regression for “zero days”, stepwise selection by AIC.</li>
+<li><strong>Count part:</strong> Poisson and negative binomial regressions, stepwise by AIC; checks for multicollinearity, residuals and deviance; 10-fold cross-validation.</li>
+<li><strong>Combined</strong> into ZIP and ZINB, each part with its own predictors, and tested for dispersion and zero inflation (DHARMa simulated residuals).</li>
+</ol>
+<div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
 <colgroup>
-<col style="width: 8%">
-<col style="width: 10%">
+<col style="width: 18%">
+<col style="width: 19%">
 <col style="width: 18%">
 <col style="width: 17%">
-<col style="width: 16%">
-<col style="width: 29%">
+<col style="width: 27%">
 </colgroup>
 <thead>
 <tr class="header">
 <th style="text-align: left;">Model</th>
-<th style="text-align: right;">AIC</th>
+<th style="text-align: left;">Variables</th>
+<th style="text-align: right;">CV RMSE (10-fold)</th>
 <th style="text-align: right;">Dispersion ratio</th>
-<th style="text-align: right;">Predicted zeros</th>
-<th style="text-align: right;">Observed zeros</th>
 <th style="text-align: right;">Predicted / observed zeros</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td style="text-align: left;">Poisson</td>
-<td style="text-align: right;">144512.92</td>
-<td style="text-align: right;">6.830</td>
-<td style="text-align: right;">443.138</td>
-<td style="text-align: right;">6041</td>
-<td style="text-align: right;">0.073</td>
+<td style="text-align: left;">25</td>
+<td style="text-align: right;">3.02</td>
+<td style="text-align: right;">2.14</td>
+<td style="text-align: right;">0.27</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">NegBin</td>
-<td style="text-align: right;">86502.80</td>
-<td style="text-align: right;">0.831</td>
-<td style="text-align: right;">5148.040</td>
-<td style="text-align: right;">6041</td>
-<td style="text-align: right;">0.852</td>
+<td style="text-align: left;">Negative binomial</td>
+<td style="text-align: left;">23</td>
+<td style="text-align: right;">3.02</td>
+<td style="text-align: right;">0.96</td>
+<td style="text-align: right;">0.75</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">ZIP</td>
-<td style="text-align: right;">101604.32</td>
-<td style="text-align: right;">2.032</td>
-<td style="text-align: right;">6040.431</td>
-<td style="text-align: right;">6041</td>
-<td style="text-align: right;">1.000</td>
+<td style="text-align: left;">count 20 / zero 24</td>
+<td style="text-align: right;">3.00</td>
+<td style="text-align: right;">1.68</td>
+<td style="text-align: right;">0.98</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">ZINB</td>
-<td style="text-align: right;">83003.59</td>
-<td style="text-align: right;">0.995</td>
-<td style="text-align: right;">6038.741</td>
-<td style="text-align: right;">6041</td>
-<td style="text-align: right;">1.000</td>
+<td style="text-align: left;">count 20 / zero 19</td>
+<td style="text-align: right;">3.00</td>
+<td style="text-align: right;">1.00</td>
+<td style="text-align: right;">1.04</td>
 </tr>
 </tbody>
 </table>
 </div>
 </div>
-<p><strong>How to read it:</strong> - <strong>Poisson</strong> badly underpredicts zeros and is overdispersed. - <strong>Negative binomial</strong> fixes the dispersion but still misses zeros. - <strong>ZIP</strong> gets the zeros right but stays overdispersed. - <strong>ZINB</strong> fixes both. Same pattern as in the original data.</p>
+<ul>
+<li><strong>Poisson</strong> is overdispersed and predicts only a quarter of the zeros.</li>
+<li><strong>Negative binomial</strong> fixes the dispersion but still misses zeros.</li>
+<li><strong>ZIP</strong> gets the zeros but stays overdispersed.</li>
+<li><strong>ZINB</strong> fixes both, with fewer predictors in the zero part.</li>
+</ul>
 </section>
-<section id="results-on-the-original-data" class="level2">
-<h2 class="anchored" data-anchor-id="results-on-the-original-data">2. Results on the original data</h2>
+<section id="mice-design" class="level2">
+<h2 class="anchored" data-anchor-id="mice-design">5. MICE design</h2>
+<ul>
+<li><strong>Covariates:</strong> every other incomplete variable imputed with PMM, using a hand-built predictor matrix.</li>
+<li><strong>Target variable:</strong> imputed with <code>mice</code> (PMM) or <code>countimp</code> (ZIP, ZINB). The predictor matrices carry the model-building results: <strong>1</strong> = predictor in both parts, <strong>2</strong> = count part only, <strong>3</strong> = zero part only.</li>
+<li><strong>Masking:</strong> 5% and 10% of the observed values hidden at random and kept aside as the truth.</li>
+<li><strong>Imputations and iterations:</strong> m = iterations = 5 (5% missing) and 10 (10% missing).</li>
+</ul>
+</section>
+<section id="convergence" class="level2">
+<h2 class="anchored" data-anchor-id="convergence">6. Convergence</h2>
+<p>Trace plots of the mean and standard deviation of the imputed values show the chains mixing without trends for every method and scenario:</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="figures/thesis/trace_zip_10.png" class="img-fluid figure-img"></p>
+<figcaption>ZIP, 10% missing (thesis figure 5.27).</figcaption>
+</figure>
+</div>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="figures/thesis/trace_zinb_10.png" class="img-fluid figure-img"></p>
+<figcaption>ZINB, 10% missing (thesis figure 5.31).</figcaption>
+</figure>
+</div>
+<p>Imputed (red) vs observed (blue) densities, 10% missing:</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="figures/thesis/imputed_vs_observed_densities.png" class="img-fluid figure-img"></p>
+<figcaption>Thesis figures 5.25, 5.29 and 5.33.</figcaption>
+</figure>
+</div>
+</section>
+<section id="results" class="level2">
+<h2 class="anchored" data-anchor-id="results">7. Results</h2>
 <div class="cell">
-<details class="code-fold">
-<summary>Code</summary>
-<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/thesis_results.png"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</details>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -264,34 +332,29 @@ window.Quarto = {
 </figure>
 </div>
 </div>
-<details class="code-fold">
-<summary>Code</summary>
-<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>thesis <span class="sc">|&gt;</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(method, missing_pct, m, MSE, RMSE, MAE, zeros_recovered_pct, imputation_time) <span class="sc">|&gt;</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"Method"</span>, <span class="st">"% missing"</span>, <span class="st">"m"</span>, <span class="st">"MSE"</span>, <span class="st">"RMSE"</span>, <span class="st">"MAE"</span>,</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>                      <span class="st">"Zeros recovered (%)"</span>, <span class="st">"Time"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
 <colgroup>
-<col style="width: 10%">
-<col style="width: 14%">
+<col style="width: 6%">
+<col style="width: 9%">
+<col style="width: 5%">
 <col style="width: 4%">
-<col style="width: 8%">
-<col style="width: 7%">
-<col style="width: 7%">
-<col style="width: 29%">
+<col style="width: 4%">
 <col style="width: 17%">
+<col style="width: 19%">
+<col style="width: 19%">
+<col style="width: 11%">
 </colgroup>
 <thead>
 <tr class="header">
 <th style="text-align: left;">Method</th>
 <th style="text-align: right;">% missing</th>
-<th style="text-align: right;">m</th>
 <th style="text-align: right;">MSE</th>
 <th style="text-align: right;">RMSE</th>
 <th style="text-align: right;">MAE</th>
+<th style="text-align: right;">Exact matches (%)</th>
 <th style="text-align: right;">Zeros recovered (%)</th>
+<th style="text-align: right;">Non-zeros exact (%)</th>
 <th style="text-align: left;">Time</th>
 </tr>
 </thead>
@@ -299,223 +362,330 @@ window.Quarto = {
 <tr class="odd">
 <td style="text-align: left;">PMM</td>
 <td style="text-align: right;">5</td>
-<td style="text-align: right;">5</td>
 <td style="text-align: right;">24.48</td>
 <td style="text-align: right;">4.95</td>
 <td style="text-align: right;">3.44</td>
+<td style="text-align: right;">12.60</td>
 <td style="text-align: right;">25.13</td>
+<td style="text-align: right;">10.23</td>
 <td style="text-align: left;">27 min</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">ZIP</td>
 <td style="text-align: right;">5</td>
-<td style="text-align: right;">5</td>
 <td style="text-align: right;">18.41</td>
 <td style="text-align: right;">4.29</td>
 <td style="text-align: right;">2.98</td>
+<td style="text-align: right;">14.06</td>
 <td style="text-align: right;">29.51</td>
+<td style="text-align: right;">11.13</td>
 <td style="text-align: left;">2 h 4 min</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">ZINB</td>
 <td style="text-align: right;">5</td>
-<td style="text-align: right;">5</td>
 <td style="text-align: right;">22.29</td>
 <td style="text-align: right;">4.72</td>
 <td style="text-align: right;">3.27</td>
+<td style="text-align: right;">14.12</td>
 <td style="text-align: right;">31.41</td>
+<td style="text-align: right;">10.85</td>
 <td style="text-align: left;">2 h 43 min</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">PMM</td>
 <td style="text-align: right;">10</td>
-<td style="text-align: right;">10</td>
 <td style="text-align: right;">23.68</td>
 <td style="text-align: right;">4.87</td>
 <td style="text-align: right;">3.46</td>
+<td style="text-align: right;">12.30</td>
 <td style="text-align: right;">22.95</td>
+<td style="text-align: right;">10.28</td>
 <td style="text-align: left;">1 h 36 min</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">ZIP</td>
 <td style="text-align: right;">10</td>
-<td style="text-align: right;">10</td>
 <td style="text-align: right;">16.86</td>
 <td style="text-align: right;">4.11</td>
 <td style="text-align: right;">2.94</td>
+<td style="text-align: right;">14.23</td>
 <td style="text-align: right;">29.94</td>
+<td style="text-align: right;">11.26</td>
 <td style="text-align: left;">8 h 21 min</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">ZINB</td>
 <td style="text-align: right;">10</td>
-<td style="text-align: right;">10</td>
 <td style="text-align: right;">20.74</td>
 <td style="text-align: right;">4.55</td>
 <td style="text-align: right;">3.24</td>
+<td style="text-align: right;">13.82</td>
 <td style="text-align: right;">31.68</td>
+<td style="text-align: right;">10.43</td>
 <td style="text-align: left;">10 h 45 min</td>
 </tr>
 </tbody>
 </table>
 </div>
 </div>
+<ul>
+<li><strong>ZIP:</strong> lowest MSE, RMSE and MAE in both scenarios, and the most exact matches among non-zero values.</li>
+<li><strong>ZINB:</strong> best at recovering zeros in both scenarios.</li>
+<li><strong>PMM:</strong> 4–7× faster but the least accurate. A reasonable first pass, not a final answer.</li>
+<li>Imputation time grew faster than the number of missing values; at 15% the count models were projected at ~19–24 hours.</li>
+</ul>
 </section>
-<section id="simulation-why-zip-wins-on-mse" class="level2">
-<h2 class="anchored" data-anchor-id="simulation-why-zip-wins-on-mse">3. Simulation: why ZIP wins on MSE</h2>
-<p>An imputation is a <strong>random draw</strong> from a predictive distribution. Its MSE against the truth is</p>
+<section id="a-second-look-lowest-mse-best-imputation" class="level2">
+<h2 class="anchored" data-anchor-id="a-second-look-lowest-mse-best-imputation">8. A second look: lowest MSE ≠ best imputation</h2>
+<p>ZINB fitted the data best (section 4), yet ZIP had the lowest MSE. An imputation is a <strong>random draw</strong> from a predictive distribution, so its MSE against the truth is</p>
 <p><span class="math display">\[
-\text{MSE} = \underbrace{(\text{bias})^2}_{\text{model}} + \operatorname{Var}(Y) + \operatorname{Var}(\tilde Y),
+E\big[(Y - \tilde Y)^2\big] = \underbrace{(E\,Y - E\,\tilde Y)^2}_{\text{bias}} + \operatorname{Var}(Y) + \operatorname{Var}(\tilde Y).
 \]</span></p>
-<p>so a method whose draws vary <strong>less</strong> scores better, even when its model is wrong. In the simulation the true model is ZINB:</p>
+<p>A method whose draws vary <strong>less</strong> scores better, even when its model is wrong. Going back to the saved imputations confirms it:</p>
 <div class="cell">
-<details class="code-fold">
-<summary>Code</summary>
-<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/mse_vs_variance.png"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</details>
-<div class="cell-output-display">
-<div>
-<figure class="figure">
-<p><img src="figures/mse_vs_variance.png" class="img-fluid figure-img" width="525"></p>
-</figure>
-</div>
-</div>
-<details class="code-fold">
-<summary>Code</summary>
-<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>demo <span class="sc">|&gt;</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(missing_pct, method, MSE, MAE, zeros_recovered_pct, variance_ratio, seconds) <span class="sc">|&gt;</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">2</span>, <span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"% missing"</span>, <span class="st">"Method"</span>, <span class="st">"MSE"</span>, <span class="st">"MAE"</span>,</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>                                  <span class="st">"Zeros recovered (%)"</span>, <span class="st">"Variance ratio"</span>, <span class="st">"Seconds"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</details>
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
 <colgroup>
-<col style="width: 14%">
+<col style="width: 9%">
+<col style="width: 12%">
+<col style="width: 7%">
+<col style="width: 32%">
+<col style="width: 20%">
+<col style="width: 16%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Method</th>
+<th style="text-align: right;">% missing</th>
+<th style="text-align: right;">MSE</th>
+<th style="text-align: right;">Var(imputed) / Var(true)</th>
+<th style="text-align: right;">Largest imputed</th>
+<th style="text-align: right;">Largest true</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">PMM</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">24.47</td>
+<td style="text-align: right;">0.876</td>
+<td style="text-align: right;">62</td>
+<td style="text-align: right;">115</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">ZIP</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">18.41</td>
+<td style="text-align: right;">0.469</td>
+<td style="text-align: right;">17</td>
+<td style="text-align: right;">115</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">ZINB</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">22.29</td>
+<td style="text-align: right;">0.768</td>
+<td style="text-align: right;">35</td>
+<td style="text-align: right;">115</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">PMM</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">23.68</td>
+<td style="text-align: right;">1.013</td>
+<td style="text-align: right;">36</td>
+<td style="text-align: right;">115</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">ZIP</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">16.86</td>
+<td style="text-align: right;">0.530</td>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;">115</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">ZINB</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">20.74</td>
+<td style="text-align: right;">0.853</td>
+<td style="text-align: right;">35</td>
+<td style="text-align: right;">115</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="figures/mse_vs_variance.png" class="img-fluid figure-img" width="675"></p>
+</figure>
+</div>
+</div>
+</div>
+<ul>
+<li><strong>ZIP</strong> keeps only about <strong>half of the real variance</strong> and never imputes more than 18 days, while true values reach 115. Analyses on those data would get standard errors that are too small.</li>
+<li><strong>ZINB</strong> and <strong>PMM</strong> keep most of the spread.</li>
+<li>A simulation where ZINB is the true model (right panel) reproduces the pattern.</li>
+</ul>
+<p><strong>Lesson:</strong> judge an imputation method by whether it preserves the distribution and supports valid inference, not by point-error metrics alone.</p>
+</section>
+<section id="reproducible-demo" class="level2">
+<h2 class="anchored" data-anchor-id="reproducible-demo">9. Reproducible demo</h2>
+<p>The SISVER microdata are not public. The repository runs the same pipeline, with <code>countimp</code>’s <code>zip</code> and <code>zinb</code> methods, on a simulated cohort with the same structure (<code>Rscript run_all.R</code>, about 2 minutes):</p>
+<div class="cell">
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<colgroup>
+<col style="width: 13%">
 <col style="width: 9%">
 <col style="width: 8%">
-<col style="width: 7%">
-<col style="width: 28%">
+<col style="width: 27%">
+<col style="width: 20%">
 <col style="width: 21%">
-<col style="width: 11%">
 </colgroup>
 <thead>
 <tr class="header">
 <th style="text-align: right;">% missing</th>
 <th style="text-align: left;">Method</th>
 <th style="text-align: right;">MSE</th>
-<th style="text-align: right;">MAE</th>
 <th style="text-align: right;">Zeros recovered (%)</th>
 <th style="text-align: right;">Variance ratio</th>
-<th style="text-align: right;">Seconds</th>
+<th style="text-align: right;">Largest imputed</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td style="text-align: right;">5</td>
 <td style="text-align: left;">PMM</td>
-<td style="text-align: right;">69.53</td>
-<td style="text-align: right;">5.71</td>
-<td style="text-align: right;">42.42</td>
-<td style="text-align: right;">0.87</td>
-<td style="text-align: right;">0.5</td>
+<td style="text-align: right;">66.60</td>
+<td style="text-align: right;">43.82</td>
+<td style="text-align: right;">0.81</td>
+<td style="text-align: right;">38.6</td>
 </tr>
 <tr class="even">
 <td style="text-align: right;">5</td>
 <td style="text-align: left;">ZIP</td>
-<td style="text-align: right;">52.20</td>
-<td style="text-align: right;">5.14</td>
-<td style="text-align: right;">42.92</td>
+<td style="text-align: right;">53.69</td>
+<td style="text-align: right;">43.03</td>
 <td style="text-align: right;">0.43</td>
-<td style="text-align: right;">39.4</td>
+<td style="text-align: right;">18.0</td>
 </tr>
 <tr class="odd">
 <td style="text-align: right;">5</td>
 <td style="text-align: left;">ZINB</td>
-<td style="text-align: right;">66.73</td>
-<td style="text-align: right;">5.60</td>
-<td style="text-align: right;">43.09</td>
-<td style="text-align: right;">0.82</td>
-<td style="text-align: right;">47.5</td>
+<td style="text-align: right;">69.56</td>
+<td style="text-align: right;">44.16</td>
+<td style="text-align: right;">0.87</td>
+<td style="text-align: right;">40.4</td>
 </tr>
 <tr class="even">
 <td style="text-align: right;">10</td>
 <td style="text-align: left;">PMM</td>
-<td style="text-align: right;">63.95</td>
-<td style="text-align: right;">5.59</td>
-<td style="text-align: right;">41.82</td>
-<td style="text-align: right;">1.01</td>
-<td style="text-align: right;">0.3</td>
+<td style="text-align: right;">62.05</td>
+<td style="text-align: right;">43.16</td>
+<td style="text-align: right;">0.99</td>
+<td style="text-align: right;">42.8</td>
 </tr>
 <tr class="odd">
 <td style="text-align: right;">10</td>
 <td style="text-align: left;">ZIP</td>
-<td style="text-align: right;">46.20</td>
-<td style="text-align: right;">5.00</td>
-<td style="text-align: right;">43.58</td>
+<td style="text-align: right;">46.95</td>
+<td style="text-align: right;">42.94</td>
 <td style="text-align: right;">0.52</td>
-<td style="text-align: right;">31.0</td>
+<td style="text-align: right;">19.0</td>
 </tr>
 <tr class="even">
 <td style="text-align: right;">10</td>
 <td style="text-align: left;">ZINB</td>
-<td style="text-align: right;">62.78</td>
-<td style="text-align: right;">5.50</td>
-<td style="text-align: right;">43.53</td>
-<td style="text-align: right;">0.97</td>
-<td style="text-align: right;">41.6</td>
+<td style="text-align: right;">62.59</td>
+<td style="text-align: right;">43.37</td>
+<td style="text-align: right;">1.01</td>
+<td style="text-align: right;">43.6</td>
 </tr>
 </tbody>
 </table>
 </div>
 </div>
-<p><strong>What the simulation shows:</strong> - ZIP’s imputations keep only about <strong>half of the real variance</strong>. Analyses that use them would report standard errors and confidence intervals that are too small. - ZINB and PMM keep the spread.</p>
-<p><strong>Conclusion:</strong> choose imputation models for <strong>distributional fidelity and valid inference</strong> (Rubin’s rules), not only for point error.</p>
-</section>
-<section id="implementation" class="level2">
-<h2 class="anchored" data-anchor-id="implementation">4. Implementation</h2>
-<p>The thesis used <code>countimp</code>. The demo uses a small reimplementation with the same logic: bootstrap the observed cases, fit <code>pscl::zeroinfl</code>, then draw a structural-zero indicator and a count.</p>
+<p><code>countimp</code> is on GitHub but not on CRAN. If it is not installed, the demo falls back to a short stand-in that follows the same steps:</p>
 <div class="cell">
 <div class="cell-output cell-output-stdout">
-<div class="sourceCode" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Custom MICE imputation methods for zero-inflated counts ----------------------</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># The thesis used the `countimp` package (methods "zip" and "zinb"). This file</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># is a small reimplementation of the same idea so the demo runs on current R:</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
-<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co">#   1. Bootstrap the observed cases (approximates draws from the posterior</span></span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co">#      of the model parameters, so between-imputation variance is kept).</span></span>
-<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co">#   2. Fit a zero-inflated Poisson or negative binomial model on the bootstrap sample.</span></span>
-<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co">#   3. For each missing case, draw a structural-zero indicator from the zero</span></span>
-<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="co">#      part and, if it is not a structural zero, a count from the count part.</span></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co"># mice finds these functions by name: method = "zip_boot" calls mice.impute.zip_boot().</span></span>
-<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>impute_zi <span class="ot">&lt;-</span> <span class="cf">function</span>(y, ry, x, wy, dist) {</span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">is.null</span>(wy)) wy <span class="ot">&lt;-</span> <span class="sc">!</span>ry</span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>  obs <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">y =</span> y[ry], x[ry, , <span class="at">drop =</span> <span class="cn">FALSE</span>])</span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>  boot <span class="ot">&lt;-</span> obs[<span class="fu">sample</span>(<span class="fu">nrow</span>(obs), <span class="at">replace =</span> <span class="cn">TRUE</span>), , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>  fit <span class="ot">&lt;-</span> pscl<span class="sc">::</span><span class="fu">zeroinfl</span>(y <span class="sc">~</span> ., <span class="at">data =</span> boot, <span class="at">dist =</span> dist)</span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>  new <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(x[wy, , <span class="at">drop =</span> <span class="cn">FALSE</span>])</span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>  p_zero <span class="ot">&lt;-</span> <span class="fu">predict</span>(fit, <span class="at">newdata =</span> new, <span class="at">type =</span> <span class="st">"zero"</span>)</span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>  mu     <span class="ot">&lt;-</span> <span class="fu">predict</span>(fit, <span class="at">newdata =</span> new, <span class="at">type =</span> <span class="st">"count"</span>)</span>
-<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>  n <span class="ot">&lt;-</span> <span class="fu">sum</span>(wy)</span>
-<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>  counts <span class="ot">&lt;-</span> <span class="cf">if</span> (dist <span class="sc">==</span> <span class="st">"poisson"</span>) <span class="fu">rpois</span>(n, mu) <span class="cf">else</span> <span class="fu">rnbinom</span>(n, <span class="at">size =</span> fit<span class="sc">$</span>theta, <span class="at">mu =</span> mu)</span>
-<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.integer</span>(<span class="fu">ifelse</span>(<span class="fu">rbinom</span>(n, <span class="dv">1</span>, p_zero) <span class="sc">==</span> <span class="dv">1</span>, <span class="dv">0</span>L, counts))</span>
-<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>mice.impute.zip_boot  <span class="ot">&lt;-</span> <span class="cf">function</span>(y, ry, x, <span class="at">wy =</span> <span class="cn">NULL</span>, ...) <span class="fu">impute_zi</span>(y, ry, x, wy, <span class="st">"poisson"</span>)</span>
-<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>mice.impute.zinb_boot <span class="ot">&lt;-</span> <span class="cf">function</span>(y, ry, x, <span class="at">wy =</span> <span class="cn">NULL</span>, ...) <span class="fu">impute_zi</span>(y, ry, x, wy, <span class="st">"negbin"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Zero-inflated imputation methods for mice ------------------------------------</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># The thesis imputed the outcome with the `countimp` package (Kleinke &amp; Reinecke),</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># methods "zip" and "zinb". countimp is not on CRAN; install it with</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co">#   remotes::install_github("kkleinke/countimp")</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># If it is installed, this demo uses countimp's own methods. If not, it falls</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># back to a short stand-in that follows the same steps.</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Both read the predictor matrix with countimp's convention, as in the thesis:</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co">#   predictor matrix code 1 = covariate in both parts of the model</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co">#                         2 = covariate in the count part only</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co">#                         3 = covariate in the zero-inflation part only</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># so the count process and the zero process can have different covariates</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="co"># (in the thesis, chosen from correlograms, PCA, stepwise AIC and 10-fold CV).</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="co">#</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Each imputation:</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="co">#   1. fits a zero-inflated Poisson or negative binomial model (pscl::zeroinfl)</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="co">#      to the observed cases, with separate count and zero-part formulas;</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="co">#   2. draws the coefficients from their approximate posterior</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="co">#      N(beta_hat, Var(beta_hat)), so parameter uncertainty is propagated</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="co">#      (countimp's default, draw = "bayes");</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="co">#   3. for each missing case, draws "zero" yes/no and, if no, a count.</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="fu">requireNamespace</span>(<span class="st">"countimp"</span>, <span class="at">quietly =</span> <span class="cn">TRUE</span>)) {</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>  IMPUTATION_ENGINE <span class="ot">&lt;-</span> <span class="st">"countimp"</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>  mice.impute.zip  <span class="ot">&lt;-</span> <span class="fu">getFromNamespace</span>(<span class="st">"mice.impute.zip"</span>,  <span class="st">"countimp"</span>)</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>  mice.impute.zinb <span class="ot">&lt;-</span> <span class="fu">getFromNamespace</span>(<span class="st">"mice.impute.zinb"</span>, <span class="st">"countimp"</span>)</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>} <span class="cf">else</span> {</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>  IMPUTATION_ENGINE <span class="ot">&lt;-</span> <span class="st">"stand-in (countimp not installed)"</span></span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>  impute_zi <span class="ot">&lt;-</span> <span class="cf">function</span>(y, ry, x, wy, type, dist) {</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="fu">is.null</span>(wy)) wy <span class="ot">&lt;-</span> <span class="sc">!</span>ry</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="fu">is.null</span>(type)) type <span class="ot">&lt;-</span> <span class="fu">rep</span>(<span class="dv">1</span>, <span class="fu">ncol</span>(x))</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>    x <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(x)</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    count_vars <span class="ot">&lt;-</span> <span class="fu">colnames</span>(x)[type <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>)]</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>    zero_vars  <span class="ot">&lt;-</span> <span class="fu">colnames</span>(x)[type <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">3</span>)]</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>    rhs <span class="ot">&lt;-</span> <span class="cf">function</span>(v) <span class="cf">if</span> (<span class="fu">length</span>(v)) <span class="fu">paste</span>(v, <span class="at">collapse =</span> <span class="st">" + "</span>) <span class="cf">else</span> <span class="st">"1"</span></span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>    f <span class="ot">&lt;-</span> <span class="fu">as.formula</span>(<span class="fu">paste</span>(<span class="st">"y ~"</span>, <span class="fu">rhs</span>(count_vars), <span class="st">"|"</span>, <span class="fu">rhs</span>(zero_vars)))</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>    obs <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">y =</span> y[ry], x[ry, , <span class="at">drop =</span> <span class="cn">FALSE</span>])</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>    fit <span class="ot">&lt;-</span> pscl<span class="sc">::</span><span class="fu">zeroinfl</span>(f, <span class="at">data =</span> obs, <span class="at">dist =</span> dist)</span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Draw the coefficients from N(beta_hat, V)</span></span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>    beta <span class="ot">&lt;-</span> MASS<span class="sc">::</span><span class="fu">mvrnorm</span>(<span class="dv">1</span>, <span class="fu">coef</span>(fit), <span class="fu">vcov</span>(fit))</span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a>    fit<span class="sc">$</span>coefficients<span class="sc">$</span>count <span class="ot">&lt;-</span> beta[<span class="fu">startsWith</span>(<span class="fu">names</span>(beta), <span class="st">"count_"</span>)]</span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a>    fit<span class="sc">$</span>coefficients<span class="sc">$</span>zero  <span class="ot">&lt;-</span> beta[<span class="fu">startsWith</span>(<span class="fu">names</span>(beta), <span class="st">"zero_"</span>)]</span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a>    <span class="fu">names</span>(fit<span class="sc">$</span>coefficients<span class="sc">$</span>count) <span class="ot">&lt;-</span> <span class="fu">sub</span>(<span class="st">"^count_"</span>, <span class="st">""</span>, <span class="fu">names</span>(fit<span class="sc">$</span>coefficients<span class="sc">$</span>count))</span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a>    <span class="fu">names</span>(fit<span class="sc">$</span>coefficients<span class="sc">$</span>zero)  <span class="ot">&lt;-</span> <span class="fu">sub</span>(<span class="st">"^zero_"</span>,  <span class="st">""</span>, <span class="fu">names</span>(fit<span class="sc">$</span>coefficients<span class="sc">$</span>zero))</span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-52"><a href="#cb1-52" aria-hidden="true" tabindex="-1"></a>    new    <span class="ot">&lt;-</span> x[wy, , drop <span class="ot">=</span> <span class="cn">FALSE</span>]</span>
+<span id="cb1-53"><a href="#cb1-53" aria-hidden="true" tabindex="-1"></a>    p_zero <span class="ot">&lt;-</span> <span class="fu">predict</span>(fit, <span class="at">newdata =</span> new, <span class="at">type =</span> <span class="st">"zero"</span>)</span>
+<span id="cb1-54"><a href="#cb1-54" aria-hidden="true" tabindex="-1"></a>    mu     <span class="ot">&lt;-</span> <span class="fu">predict</span>(fit, <span class="at">newdata =</span> new, <span class="at">type =</span> <span class="st">"count"</span>)</span>
+<span id="cb1-55"><a href="#cb1-55" aria-hidden="true" tabindex="-1"></a>    n <span class="ot">&lt;-</span> <span class="fu">sum</span>(wy)</span>
+<span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a>    counts <span class="ot">&lt;-</span> <span class="cf">if</span> (dist <span class="sc">==</span> <span class="st">"poisson"</span>) <span class="fu">rpois</span>(n, mu) <span class="cf">else</span> <span class="fu">rnbinom</span>(n, <span class="at">size =</span> fit<span class="sc">$</span>theta, <span class="at">mu =</span> mu)</span>
+<span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a>    <span class="fu">as.integer</span>(<span class="fu">ifelse</span>(<span class="fu">rbinom</span>(n, <span class="dv">1</span>, p_zero) <span class="sc">==</span> <span class="dv">1</span>, <span class="dv">0</span>L, counts))</span>
+<span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>  mice.impute.zip  <span class="ot">&lt;-</span> <span class="cf">function</span>(y, ry, x, <span class="at">wy =</span> <span class="cn">NULL</span>, <span class="at">type =</span> <span class="cn">NULL</span>, ...) <span class="fu">impute_zi</span>(y, ry, x, wy, type, <span class="st">"poisson"</span>)</span>
+<span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a>  mice.impute.zinb <span class="ot">&lt;-</span> <span class="cf">function</span>(y, ry, x, <span class="at">wy =</span> <span class="cn">NULL</span>, <span class="at">type =</span> <span class="cn">NULL</span>, ...) <span class="fu">impute_zi</span>(y, ry, x, wy, type, <span class="st">"negbin"</span>)</span>
+<span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-64"><a href="#cb1-64" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">"Zero-inflated imputation engine:"</span>, IMPUTATION_ENGINE, <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
-<p>Full code: <a href="https://github.com/AMauGomez/mice-zero-inflated">github.com/AMauGomez/mice-zero-inflated</a></p>
 </section>
-<section id="limitations" class="level2">
-<h2 class="anchored" data-anchor-id="limitations">Limitations</h2>
+<section id="notes-and-limitations" class="level2">
+<h2 class="anchored" data-anchor-id="notes-and-limitations">Notes and limitations</h2>
 <ul>
-<li><strong>The masking was MCAR.</strong> Real missingness in surveillance data is probably MAR or MNAR (sicker patients have less complete records).</li>
-<li><strong>The thesis scored the first completed dataset.</strong> The demo averages over all <em>m</em> imputations.</li>
-<li><strong>The simulated data reproduce the structure of the real data, not its exact values.</strong> Demo numbers are not comparable with the thesis numbers.</li>
+<li><strong>Masking mechanism.</strong> The thesis describes the masking as MAR. The masked rows were a simple random sample, the MCAR special case. Real missingness in surveillance data is likely MAR or MNAR.</li>
+<li><strong>Exact-match percentages</strong> are corrected here: the thesis table divided by twice the number of masked values. Counts, errors and rankings are unchanged.</li>
+<li><strong>One completed dataset scored.</strong> The thesis scripts evaluate the first imputed dataset; the demo averages over all <em>m</em>.</li>
 </ul>
 <!-- -->
 
@@ -994,115 +1164,188 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
 });
 </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
-<div class="sourceCode" id="cb8" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Multiple imputation of zero-inflated counts with MICE"</span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PMM vs zero-inflated Poisson vs zero-inflated negative binomial"</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="an">author:</span><span class="co"> "Aaron Mauricio Gómez Jiménez"</span></span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="an">date:</span><span class="co"> "2025"</span></span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co">    theme: cosmo</span></span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: true</span></span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="co">  message: false</span></span>
-<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: false</span></span>
-<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr); <span class="fu">library</span>(dplyr); <span class="fu">library</span>(knitr)</span>
-<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>thesis <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"results/thesis/imputation_results_thesis.csv"</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>demo   <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"results/demo/imputation_metrics.csv"</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>models <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"results/demo/count_model_comparison.csv"</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a><span class="fu">## Summary</span></span>
-<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**The data:** Mexico's COVID-19 surveillance system (SISVER), January–June 2020: **583,678 patients and 113 variables**.</span>
-<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**The variable to impute:** *days with symptoms before admission*. It is overdispersed and has an excess of **structural zeros**, recorded when the onset date of severely ill patients could not be obtained.</span>
-<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**The comparison:** three MICE imputation methods (PMM, ZIP and ZINB), tested by hiding 5% and 10% of known values and checking the imputations against the truth.</span>
-<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>**Main findings:**</span>
-<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>On the real data, **ZIP gave the lowest error (−29% MSE vs PMM)**.</span>
-<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZINB recovered the most structural zeros (+38% vs PMM).**</span>
-<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Both count models took 5–7 times longer** to impute.</span>
-<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A simulation study shows that ZIP's lower MSE comes from **imputations that are too narrow**. Lowest MSE is not the same as the best imputation.</span>
-<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a><span class="fu">## 1. Why a zero-inflated model?</span></span>
-<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Simulated outcome with the same structure as the real one."</span></span>
-<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/outcome_distribution.png"</span>)</span>
-<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a>The thesis checked the count models in sequence. Here is the same check on the simulated cohort:</span>
-<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a><span class="fu">kable</span>(models, <span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"Model"</span>, <span class="st">"AIC"</span>, <span class="st">"Dispersion ratio"</span>, <span class="st">"Predicted zeros"</span>,</span>
-<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a>                            <span class="st">"Observed zeros"</span>, <span class="st">"Predicted / observed zeros"</span>))</span>
-<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-58"><a href="#cb8-58" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-59"><a href="#cb8-59" aria-hidden="true" tabindex="-1"></a>**How to read it:**</span>
-<span id="cb8-60"><a href="#cb8-60" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Poisson** badly underpredicts zeros and is overdispersed.</span>
-<span id="cb8-61"><a href="#cb8-61" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Negative binomial** fixes the dispersion but still misses zeros.</span>
-<span id="cb8-62"><a href="#cb8-62" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZIP** gets the zeros right but stays overdispersed.</span>
-<span id="cb8-63"><a href="#cb8-63" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZINB** fixes both. Same pattern as in the original data.</span>
-<span id="cb8-64"><a href="#cb8-64" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-65"><a href="#cb8-65" aria-hidden="true" tabindex="-1"></a><span class="fu">## 2. Results on the original data</span></span>
-<span id="cb8-66"><a href="#cb8-66" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-69"><a href="#cb8-69" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb8-70"><a href="#cb8-70" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/thesis_results.png"</span>)</span>
-<span id="cb8-71"><a href="#cb8-71" aria-hidden="true" tabindex="-1"></a>thesis <span class="sc">|&gt;</span></span>
-<span id="cb8-72"><a href="#cb8-72" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(method, missing_pct, m, MSE, RMSE, MAE, zeros_recovered_pct, imputation_time) <span class="sc">|&gt;</span></span>
-<span id="cb8-73"><a href="#cb8-73" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"Method"</span>, <span class="st">"% missing"</span>, <span class="st">"m"</span>, <span class="st">"MSE"</span>, <span class="st">"RMSE"</span>, <span class="st">"MAE"</span>,</span>
-<span id="cb8-74"><a href="#cb8-74" aria-hidden="true" tabindex="-1"></a>                      <span class="st">"Zeros recovered (%)"</span>, <span class="st">"Time"</span>))</span>
-<span id="cb8-75"><a href="#cb8-75" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-76"><a href="#cb8-76" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-77"><a href="#cb8-77" aria-hidden="true" tabindex="-1"></a><span class="fu">## 3. Simulation: why ZIP wins on MSE</span></span>
-<span id="cb8-78"><a href="#cb8-78" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-79"><a href="#cb8-79" aria-hidden="true" tabindex="-1"></a>An imputation is a **random draw** from a predictive distribution. Its MSE against the truth is</span>
-<span id="cb8-80"><a href="#cb8-80" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-81"><a href="#cb8-81" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-82"><a href="#cb8-82" aria-hidden="true" tabindex="-1"></a>\text{MSE} = \underbrace{(\text{bias})^2}_{\text{model}} + \operatorname{Var}(Y) + \operatorname{Var}(\tilde Y),</span>
-<span id="cb8-83"><a href="#cb8-83" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb8-84"><a href="#cb8-84" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-85"><a href="#cb8-85" aria-hidden="true" tabindex="-1"></a>so a method whose draws vary **less** scores better, even when its model is wrong. In the simulation the true model is ZINB:</span>
-<span id="cb8-86"><a href="#cb8-86" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-89"><a href="#cb8-89" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb8-90"><a href="#cb8-90" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/mse_vs_variance.png"</span>)</span>
-<span id="cb8-91"><a href="#cb8-91" aria-hidden="true" tabindex="-1"></a>demo <span class="sc">|&gt;</span></span>
-<span id="cb8-92"><a href="#cb8-92" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(missing_pct, method, MSE, MAE, zeros_recovered_pct, variance_ratio, seconds) <span class="sc">|&gt;</span></span>
-<span id="cb8-93"><a href="#cb8-93" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">2</span>, <span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"% missing"</span>, <span class="st">"Method"</span>, <span class="st">"MSE"</span>, <span class="st">"MAE"</span>,</span>
-<span id="cb8-94"><a href="#cb8-94" aria-hidden="true" tabindex="-1"></a>                                  <span class="st">"Zeros recovered (%)"</span>, <span class="st">"Variance ratio"</span>, <span class="st">"Seconds"</span>))</span>
-<span id="cb8-95"><a href="#cb8-95" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-96"><a href="#cb8-96" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-97"><a href="#cb8-97" aria-hidden="true" tabindex="-1"></a>**What the simulation shows:**</span>
-<span id="cb8-98"><a href="#cb8-98" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>ZIP's imputations keep only about **half of the real variance**. Analyses that use them would report standard errors and confidence intervals that are too small.</span>
-<span id="cb8-99"><a href="#cb8-99" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>ZINB and PMM keep the spread.</span>
-<span id="cb8-100"><a href="#cb8-100" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-101"><a href="#cb8-101" aria-hidden="true" tabindex="-1"></a>**Conclusion:** choose imputation models for **distributional fidelity and valid inference** (Rubin's rules), not only for point error.</span>
-<span id="cb8-102"><a href="#cb8-102" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-103"><a href="#cb8-103" aria-hidden="true" tabindex="-1"></a><span class="fu">## 4. Implementation</span></span>
-<span id="cb8-104"><a href="#cb8-104" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-105"><a href="#cb8-105" aria-hidden="true" tabindex="-1"></a>The thesis used <span class="in">`countimp`</span>. The demo uses a small reimplementation with the same logic: bootstrap the observed cases, fit <span class="in">`pscl::zeroinfl`</span>, then draw a structural-zero indicator and a count.</span>
-<span id="cb8-106"><a href="#cb8-106" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-109"><a href="#cb8-109" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb8-110"><a href="#cb8-110" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb8-111"><a href="#cb8-111" aria-hidden="true" tabindex="-1"></a><span class="co">#| class-output: r</span></span>
-<span id="cb8-112"><a href="#cb8-112" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">readLines</span>(<span class="st">"R/03_imputation_methods.R"</span>), <span class="at">sep =</span> <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span>
-<span id="cb8-113"><a href="#cb8-113" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb8-114"><a href="#cb8-114" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-115"><a href="#cb8-115" aria-hidden="true" tabindex="-1"></a>Full code: <span class="co">[</span><span class="ot">github.com/AMauGomez/mice-zero-inflated</span><span class="co">](https://github.com/AMauGomez/mice-zero-inflated)</span></span>
-<span id="cb8-116"><a href="#cb8-116" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-117"><a href="#cb8-117" aria-hidden="true" tabindex="-1"></a><span class="fu">## Limitations</span></span>
-<span id="cb8-118"><a href="#cb8-118" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-119"><a href="#cb8-119" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**The masking was MCAR.** Real missingness in surveillance data is probably MAR or MNAR (sicker patients have less complete records).</span>
-<span id="cb8-120"><a href="#cb8-120" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**The thesis scored the first completed dataset.** The demo averages over all *m* imputations.</span>
-<span id="cb8-121"><a href="#cb8-121" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**The simulated data reproduce the structure of the real data, not its exact values.** Demo numbers are not comparable with the thesis numbers.</span>
+<div class="sourceCode" id="cb2" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Multiple imputation of zero-inflated counts with MICE"</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PMM vs zero-inflated Poisson vs zero-inflated negative binomial on 583,678 COVID-19 patients"</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="an">author:</span><span class="co"> "Aaron Mauricio Gómez Jiménez"</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="an">date:</span><span class="co"> "2025"</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co">    theme: cosmo</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-depth: 2</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: true</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: false</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="co">  message: false</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: false</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readr); <span class="fu">library</span>(dplyr); <span class="fu">library</span>(knitr)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>thesis <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"results/thesis/imputation_results_thesis.csv"</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>spread <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"results/thesis/real_data_distribution_check.csv"</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>cm     <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"results/thesis/count_models_thesis.csv"</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>demo   <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"results/demo/imputation_metrics.csv"</span>, <span class="at">show_col_types =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>BSc thesis in Mathematics, UNAM (2025). Supervisor: Dr. Ruth Selene Fuentes García.</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Thesis (TESIUNAM)</span><span class="co">](https://tesiunamdocumentos.dgb.unam.mx/ptd2025/abr_jun/0872591/Index.html)</span> · <span class="co">[</span><span class="ot">Code on GitHub</span><span class="co">](https://github.com/AMauGomez/mice-zero-inflated)</span> · <span class="co">[</span><span class="ot">Original analysis scripts</span><span class="co">](https://github.com/AMauGomez/mice-zero-inflated/tree/main/thesis_code)</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a><span class="fu">## Summary</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>**Question.** When the variable to impute has far more zeros than a count distribution allows, do zero-inflated imputation models beat Predictive Mean Matching (PMM) inside MICE?</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>**Data.** Mexico's COVID-19 respiratory-disease surveillance system (SISVER), January–June 2020: **583,678 patients, 113 variables**. The variable imputed is *days with symptoms before admission* (mean 3.7, variance 10.9, 15.9% zeros).</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>**Findings.**</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZIP** gave the lowest error: **−29% MSE vs PMM**.</span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZINB** recovered the most zeros: **+38% vs PMM**.</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Both count models took **5–7 times longer** than PMM.</span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A second look at the saved imputations shows that ZIP's low MSE comes from **imputations that are too narrow** (about half the real variance). Lowest MSE is not the same as the best imputation.</span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a><span class="fu">## 1. The problem</span></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>Days with symptoms is the admission date minus the symptom-onset date. Its zeros come from two sources that cannot be separated in the data:</span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**True zeros:** confirmed patients without symptoms.</span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Missing values in disguise:** when a patient arrived too ill to answer the intake questionnaire, the onset date was often filled in with the admission date.</span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>Many other variables were incomplete too, so the problem calls for **multivariate** multiple imputation, with a model for the target variable that can handle excess zeros.</span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a><span class="fu">## 2. Data preparation</span></span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>113 → 61 → 44 numeric variables. Removed variables that did not apply to every patient (pregnancy, travel, death dates, hospital coordinates); converted yes/no items to binary.</span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Recoded "unknown" answers and unusable lab results (rejected, not received, did not amplify…) as missing, so MICE could impute them.</span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Before masking, **1.65 million cells (4.6%)** were missing. Intubation status was the worst-recorded variable.</span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a><span class="al">![Missing-data pattern, variables 1–30 (thesis figure 5.1).](figures/thesis/missingness_pattern.png)</span></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true" tabindex="-1"></a><span class="fu">## 3. Which distribution?</span></span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-67"><a href="#cb2-67" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb2-68"><a href="#cb2-68" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Days with symptoms, all 583,678 patients (thesis figure 5.7)."</span></span>
+<span id="cb2-69"><a href="#cb2-69" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/thesis/days_symptoms_histogram.png"</span>)</span>
+<span id="cb2-70"><a href="#cb2-70" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-71"><a href="#cb2-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-72"><a href="#cb2-72" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The variance is three times the mean, so Poisson is out.</span>
+<span id="cb2-73"><a href="#cb2-73" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Chi-square goodness-of-fit tests reject both Poisson (λ = 3.68) and negative binomial (size = 1.80).</span>
+<span id="cb2-74"><a href="#cb2-74" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The negative binomial adds zeros but still misses the shape:</span>
+<span id="cb2-75"><a href="#cb2-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-78"><a href="#cb2-78" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb2-79"><a href="#cb2-79" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Empirical (black), Poisson (orange) and negative binomial (blue) densities (thesis figure 5.8)."</span></span>
+<span id="cb2-80"><a href="#cb2-80" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/thesis/empirical_vs_poisson_nb.png"</span>)</span>
+<span id="cb2-81"><a href="#cb2-81" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-82"><a href="#cb2-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-83"><a href="#cb2-83" aria-hidden="true" tabindex="-1"></a><span class="fu">## 4. Model building</span></span>
+<span id="cb2-84"><a href="#cb2-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-85"><a href="#cb2-85" aria-hidden="true" tabindex="-1"></a>The imputation models were built as regression models first:</span>
+<span id="cb2-86"><a href="#cb2-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-87"><a href="#cb2-87" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Candidate predictors** from correlograms, PCA and subject-matter judgement.</span>
+<span id="cb2-88"><a href="#cb2-88" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Zero part:** logistic regression for "zero days", stepwise selection by AIC.</span>
+<span id="cb2-89"><a href="#cb2-89" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Count part:** Poisson and negative binomial regressions, stepwise by AIC; checks for multicollinearity, residuals and deviance; 10-fold cross-validation.</span>
+<span id="cb2-90"><a href="#cb2-90" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**Combined** into ZIP and ZINB, each part with its own predictors, and tested for dispersion and zero inflation (DHARMa simulated residuals).</span>
+<span id="cb2-91"><a href="#cb2-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-94"><a href="#cb2-94" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb2-95"><a href="#cb2-95" aria-hidden="true" tabindex="-1"></a>cm <span class="sc">|&gt;</span></span>
+<span id="cb2-96"><a href="#cb2-96" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(model, n_variables, RMSE_cv10, dispersion_ratio, zero_ratio) <span class="sc">|&gt;</span></span>
+<span id="cb2-97"><a href="#cb2-97" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"Model"</span>, <span class="st">"Variables"</span>, <span class="st">"CV RMSE (10-fold)"</span>, <span class="st">"Dispersion ratio"</span>,</span>
+<span id="cb2-98"><a href="#cb2-98" aria-hidden="true" tabindex="-1"></a>                      <span class="st">"Predicted / observed zeros"</span>))</span>
+<span id="cb2-99"><a href="#cb2-99" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-100"><a href="#cb2-100" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-101"><a href="#cb2-101" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Poisson** is overdispersed and predicts only a quarter of the zeros.</span>
+<span id="cb2-102"><a href="#cb2-102" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Negative binomial** fixes the dispersion but still misses zeros.</span>
+<span id="cb2-103"><a href="#cb2-103" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZIP** gets the zeros but stays overdispersed.</span>
+<span id="cb2-104"><a href="#cb2-104" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZINB** fixes both, with fewer predictors in the zero part.</span>
+<span id="cb2-105"><a href="#cb2-105" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-106"><a href="#cb2-106" aria-hidden="true" tabindex="-1"></a><span class="fu">## 5. MICE design</span></span>
+<span id="cb2-107"><a href="#cb2-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-108"><a href="#cb2-108" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Covariates:** every other incomplete variable imputed with PMM, using a hand-built predictor matrix.</span>
+<span id="cb2-109"><a href="#cb2-109" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Target variable:** imputed with `mice` (PMM) or `countimp` (ZIP, ZINB). The predictor matrices carry the model-building results: **1** = predictor in both parts, **2** = count part only, **3** = zero part only.</span>
+<span id="cb2-110"><a href="#cb2-110" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Masking:** 5% and 10% of the observed values hidden at random and kept aside as the truth.</span>
+<span id="cb2-111"><a href="#cb2-111" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Imputations and iterations:** m = iterations = 5 (5% missing) and 10 (10% missing).</span>
+<span id="cb2-112"><a href="#cb2-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-113"><a href="#cb2-113" aria-hidden="true" tabindex="-1"></a><span class="fu">## 6. Convergence</span></span>
+<span id="cb2-114"><a href="#cb2-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-115"><a href="#cb2-115" aria-hidden="true" tabindex="-1"></a>Trace plots of the mean and standard deviation of the imputed values show the chains mixing without trends for every method and scenario:</span>
+<span id="cb2-116"><a href="#cb2-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-117"><a href="#cb2-117" aria-hidden="true" tabindex="-1"></a><span class="al">![ZIP, 10% missing (thesis figure 5.27).](figures/thesis/trace_zip_10.png)</span></span>
+<span id="cb2-118"><a href="#cb2-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-119"><a href="#cb2-119" aria-hidden="true" tabindex="-1"></a><span class="al">![ZINB, 10% missing (thesis figure 5.31).](figures/thesis/trace_zinb_10.png)</span></span>
+<span id="cb2-120"><a href="#cb2-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-121"><a href="#cb2-121" aria-hidden="true" tabindex="-1"></a>Imputed (red) vs observed (blue) densities, 10% missing:</span>
+<span id="cb2-122"><a href="#cb2-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-123"><a href="#cb2-123" aria-hidden="true" tabindex="-1"></a><span class="al">![Thesis figures 5.25, 5.29 and 5.33.](figures/thesis/imputed_vs_observed_densities.png)</span></span>
+<span id="cb2-124"><a href="#cb2-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-125"><a href="#cb2-125" aria-hidden="true" tabindex="-1"></a><span class="fu">## 7. Results</span></span>
+<span id="cb2-126"><a href="#cb2-126" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-129"><a href="#cb2-129" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb2-130"><a href="#cb2-130" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/thesis_results.png"</span>)</span>
+<span id="cb2-131"><a href="#cb2-131" aria-hidden="true" tabindex="-1"></a>thesis <span class="sc">|&gt;</span></span>
+<span id="cb2-132"><a href="#cb2-132" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(method, missing_pct, MSE, RMSE, MAE, exact_match_pct, zeros_recovered_pct,</span>
+<span id="cb2-133"><a href="#cb2-133" aria-hidden="true" tabindex="-1"></a>         nonzero_exact_pct, imputation_time) <span class="sc">|&gt;</span></span>
+<span id="cb2-134"><a href="#cb2-134" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"Method"</span>, <span class="st">"% missing"</span>, <span class="st">"MSE"</span>, <span class="st">"RMSE"</span>, <span class="st">"MAE"</span>, <span class="st">"Exact matches (%)"</span>,</span>
+<span id="cb2-135"><a href="#cb2-135" aria-hidden="true" tabindex="-1"></a>                      <span class="st">"Zeros recovered (%)"</span>, <span class="st">"Non-zeros exact (%)"</span>, <span class="st">"Time"</span>))</span>
+<span id="cb2-136"><a href="#cb2-136" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-137"><a href="#cb2-137" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-138"><a href="#cb2-138" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZIP:** lowest MSE, RMSE and MAE in both scenarios, and the most exact matches among non-zero values.</span>
+<span id="cb2-139"><a href="#cb2-139" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZINB:** best at recovering zeros in both scenarios.</span>
+<span id="cb2-140"><a href="#cb2-140" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**PMM:** 4–7× faster but the least accurate. A reasonable first pass, not a final answer.</span>
+<span id="cb2-141"><a href="#cb2-141" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Imputation time grew faster than the number of missing values; at 15% the count models were projected at ~19–24 hours.</span>
+<span id="cb2-142"><a href="#cb2-142" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-143"><a href="#cb2-143" aria-hidden="true" tabindex="-1"></a><span class="fu">## 8. A second look: lowest MSE ≠ best imputation</span></span>
+<span id="cb2-144"><a href="#cb2-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-145"><a href="#cb2-145" aria-hidden="true" tabindex="-1"></a>ZINB fitted the data best (section 4), yet ZIP had the lowest MSE. An imputation is a **random draw** from a predictive distribution, so its MSE against the truth is</span>
+<span id="cb2-146"><a href="#cb2-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-147"><a href="#cb2-147" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb2-148"><a href="#cb2-148" aria-hidden="true" tabindex="-1"></a>E\big<span class="co">[</span><span class="ot">(Y - \tilde Y)^2\big</span><span class="co">]</span> = \underbrace{(E\,Y - E\,\tilde Y)^2}_{\text{bias}} + \operatorname{Var}(Y) + \operatorname{Var}(\tilde Y).</span>
+<span id="cb2-149"><a href="#cb2-149" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb2-150"><a href="#cb2-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-151"><a href="#cb2-151" aria-hidden="true" tabindex="-1"></a>A method whose draws vary **less** scores better, even when its model is wrong. Going back to the saved imputations confirms it:</span>
+<span id="cb2-152"><a href="#cb2-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-155"><a href="#cb2-155" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb2-156"><a href="#cb2-156" aria-hidden="true" tabindex="-1"></a>spread <span class="sc">|&gt;</span></span>
+<span id="cb2-157"><a href="#cb2-157" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(method, missing_pct, MSE, variance_ratio, max_imputed, max_true) <span class="sc">|&gt;</span></span>
+<span id="cb2-158"><a href="#cb2-158" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"Method"</span>, <span class="st">"% missing"</span>, <span class="st">"MSE"</span>, <span class="st">"Var(imputed) / Var(true)"</span>,</span>
+<span id="cb2-159"><a href="#cb2-159" aria-hidden="true" tabindex="-1"></a>                      <span class="st">"Largest imputed"</span>, <span class="st">"Largest true"</span>))</span>
+<span id="cb2-160"><a href="#cb2-160" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-161"><a href="#cb2-161" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-164"><a href="#cb2-164" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb2-165"><a href="#cb2-165" aria-hidden="true" tabindex="-1"></a><span class="fu">include_graphics</span>(<span class="st">"figures/mse_vs_variance.png"</span>)</span>
+<span id="cb2-166"><a href="#cb2-166" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-167"><a href="#cb2-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-168"><a href="#cb2-168" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZIP** keeps only about **half of the real variance** and never imputes more than 18 days, while true values reach 115. Analyses on those data would get standard errors that are too small.</span>
+<span id="cb2-169"><a href="#cb2-169" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ZINB** and **PMM** keep most of the spread.</span>
+<span id="cb2-170"><a href="#cb2-170" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A simulation where ZINB is the true model (right panel) reproduces the pattern.</span>
+<span id="cb2-171"><a href="#cb2-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-172"><a href="#cb2-172" aria-hidden="true" tabindex="-1"></a>**Lesson:** judge an imputation method by whether it preserves the distribution and supports valid inference, not by point-error metrics alone.</span>
+<span id="cb2-173"><a href="#cb2-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-174"><a href="#cb2-174" aria-hidden="true" tabindex="-1"></a><span class="fu">## 9. Reproducible demo</span></span>
+<span id="cb2-175"><a href="#cb2-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-176"><a href="#cb2-176" aria-hidden="true" tabindex="-1"></a>The SISVER microdata are not public. The repository runs the same pipeline, with <span class="in">`countimp`</span>'s <span class="in">`zip`</span> and <span class="in">`zinb`</span> methods, on a simulated cohort with the same structure (<span class="in">`Rscript run_all.R`</span>, about 2 minutes):</span>
+<span id="cb2-177"><a href="#cb2-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-180"><a href="#cb2-180" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb2-181"><a href="#cb2-181" aria-hidden="true" tabindex="-1"></a>demo <span class="sc">|&gt;</span></span>
+<span id="cb2-182"><a href="#cb2-182" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(missing_pct, method, MSE, zeros_recovered_pct, variance_ratio, max_imputed) <span class="sc">|&gt;</span></span>
+<span id="cb2-183"><a href="#cb2-183" aria-hidden="true" tabindex="-1"></a>  <span class="fu">kable</span>(<span class="at">digits =</span> <span class="dv">2</span>, <span class="at">col.names =</span> <span class="fu">c</span>(<span class="st">"% missing"</span>, <span class="st">"Method"</span>, <span class="st">"MSE"</span>, <span class="st">"Zeros recovered (%)"</span>,</span>
+<span id="cb2-184"><a href="#cb2-184" aria-hidden="true" tabindex="-1"></a>                                  <span class="st">"Variance ratio"</span>, <span class="st">"Largest imputed"</span>))</span>
+<span id="cb2-185"><a href="#cb2-185" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-186"><a href="#cb2-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-187"><a href="#cb2-187" aria-hidden="true" tabindex="-1"></a><span class="in">`countimp`</span> is on GitHub but not on CRAN. If it is not installed, the demo falls back to a short stand-in that follows the same steps:</span>
+<span id="cb2-188"><a href="#cb2-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-191"><a href="#cb2-191" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb2-192"><a href="#cb2-192" aria-hidden="true" tabindex="-1"></a><span class="co">#| class-output: r</span></span>
+<span id="cb2-193"><a href="#cb2-193" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="fu">readLines</span>(<span class="st">"R/03_imputation_methods.R"</span>), <span class="at">sep =</span> <span class="st">"</span><span class="sc">\n</span><span class="st">"</span>)</span>
+<span id="cb2-194"><a href="#cb2-194" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb2-195"><a href="#cb2-195" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-196"><a href="#cb2-196" aria-hidden="true" tabindex="-1"></a><span class="fu">## Notes and limitations</span></span>
+<span id="cb2-197"><a href="#cb2-197" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-198"><a href="#cb2-198" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Masking mechanism.** The thesis describes the masking as MAR. The masked rows were a simple random sample, the MCAR special case. Real missingness in surveillance data is likely MAR or MNAR.</span>
+<span id="cb2-199"><a href="#cb2-199" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Exact-match percentages** are corrected here: the thesis table divided by twice the number of masked values. Counts, errors and rankings are unchanged.</span>
+<span id="cb2-200"><a href="#cb2-200" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**One completed dataset scored.** The thesis scripts evaluate the first imputed dataset; the demo averages over all *m*.</span>
 </code><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></pre></div>
 </div></div></div></div></div>
 </div> <!-- /content -->
