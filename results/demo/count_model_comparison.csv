@@ -1,0 +1,5 @@
+model,AIC,dispersion_ratio,zeros_predicted,zeros_observed,zero_ratio
+Poisson,144512.922,6.83,443.138,6041,0.073
+NegBin,86502.801,0.831,5148.04,6041,0.852
+ZIP,101604.315,2.032,6040.431,6041,1
+ZINB,83003.586,0.995,6038.741,6041,1

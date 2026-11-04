@@ -1,0 +1,7 @@
+method,missing_pct,m,maxit,MSE,RMSE,MAE,exact_matches,exact_match_pct,zeros_observed,zeros_recovered,zeros_recovered_pct,nonzero_exact,imputation_time
+PMM,5,5,5,24.48,4.95,3.44,3681,6.31,4652,1169,25.13,2512,27 min
+ZIP,5,5,5,18.41,4.29,2.98,4107,7.04,4652,1373,29.51,2734,2 h 4 min
+ZINB,5,5,5,22.29,4.72,3.27,4125,7.07,4652,1461,31.41,2664,2 h 43 min
+PMM,10,10,10,23.68,4.87,3.46,7183,6.15,9304,2135,22.95,5048,1 h 36 min
+ZIP,10,10,10,16.86,4.11,2.94,8311,7.12,9304,2786,29.94,5525,8 h 21 min
+ZINB,10,10,10,20.74,4.55,3.24,8067,6.91,9304,2948,31.68,5119,10 h 45 min

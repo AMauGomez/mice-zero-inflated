@@ -1,0 +1,12 @@
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+results/demo/simulated_cohort.csv
+report/*_files/
+report/.quarto/
+# Never commit real data
+*.xlsx
+data/
+
+/.quarto/
