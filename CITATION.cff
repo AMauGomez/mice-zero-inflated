@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite the thesis."
+title: "Multiple imputation of zero-inflated counts with MICE"
+authors:
+  - family-names: "Gómez Jiménez"
+    given-names: "Aaron Mauricio"
+repository-code: "https://github.com/AMauGomez/mice-zero-inflated"
+url: "https://amaugomez.github.io/mice-zero-inflated/"
+license: MIT
+preferred-citation:
+  type: thesis
+  title: "Métodos de Estimación e Imputación de Variables Cero Infladas con el Modelo de Imputación Multivariada por Ecuaciones Encadenadas"
+  authors:
+    - family-names: "Gómez Jiménez"
+      given-names: "Aaron Mauricio"
+  institution:
+    name: "Facultad de Ciencias, Universidad Nacional Autónoma de México"
+  thesis-type: "Tesis de Licenciatura en Matemáticas"
+  year: 2025
+  url: "https://tesiunamdocumentos.dgb.unam.mx/ptd2025/abr_jun/0872591/Index.html"

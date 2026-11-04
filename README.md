@@ -2,9 +2,9 @@
 
 **When the variable to impute has far more zeros than a count distribution allows, can zero-inflated models (ZIP, ZINB) beat Predictive Mean Matching inside MICE?**
 
-BSc thesis in Mathematics, UNAM (2025): *"Métodos de Estimación e Imputación de Variables Cero Infladas con el Modelo de Imputación Multivariada por Ecuaciones Encadenadas"*. Supervisor: Dr. Ruth Selene Fuentes García.
+BSc thesis in Mathematics, UNAM (2025): *"Métodos de Estimación e Imputación de Variables Cero Infladas con el Modelo de Imputación Multivariada por Ecuaciones Encadenadas"*. Defended 8 August 2025. Supervisor: Dra. Ruth Selene Fuentes García.
 
-📄 [Thesis (TESIUNAM)](https://tesiunamdocumentos.dgb.unam.mx/ptd2025/abr_jun/0872591/Index.html) · 📊 [Full project report](https://amaugomez.github.io/mice-zero-inflated/) · 🗂️ [Original analysis code](thesis_code/)
+📄 [Thesis (TESIUNAM)](https://tesiunamdocumentos.dgb.unam.mx/ptd2025/abr_jun/0872591/Index.html) · 📊 [Full project report](https://amaugomez.github.io/mice-zero-inflated/) · 🗂️ [Original analysis code](thesis_code/) · 🇲🇽 [Resumen en español](https://amaugomez.github.io/mice-zero-inflated/es.html)
 
 ---
 
@@ -14,7 +14,8 @@ BSc thesis in Mathematics, UNAM (2025): *"Métodos de Estimación e Imputación 
 |---|---|
 | **Data** | Mexico's COVID-19 respiratory-disease surveillance system (SISVER), Jan–Jun 2020: **583,678 patients, 113 variables** |
 | **Variable imputed** | Days with symptoms before admission: mean 3.7, variance 10.9, **15.9% zeros** |
-| **Methods compared** | PMM, zero-inflated Poisson (ZIP) and zero-inflated negative binomial (ZINB), all inside MICE |
+| **Imputation** | Multivariate MICE: **42 of 44 variables** had missing values and all were imputed together |
+| **Methods compared** | For days with symptoms: PMM, zero-inflated Poisson (ZIP) and zero-inflated negative binomial (ZINB) |
 | **Design** | Hide 5% and 10% of the known values, impute them, compare with the truth |
 | **Main result** | ZIP had the lowest error (**−29% MSE vs PMM**); ZINB recovered the most zeros (**+38% vs PMM**); both took **5–7× longer** |
 | **Second look** | ZIP's lower MSE comes from imputations that are **too narrow**: they keep only ~50% of the real variance. Lowest MSE ≠ best imputation |
@@ -30,12 +31,12 @@ Other variables were also incomplete, so the problem calls for **multivariate** 
 
 ## How the work was done
 
-The thesis covers the theory first (GLMs and zero-inflated mixture models, missing-data mechanisms and Little's test, EM, FIML, Gibbs sampling, Bayesian regression imputation, PMM, MICE), then this applied study.
+The thesis covers the theory first (GLMs and zero-inflated mixture models, missing-data mechanisms and Little's test, EM, FIML, Gibbs sampling and MCMC convergence, Bayesian regression imputation, PMM, MICE as a Gibbs sampler), then this applied study. The [report](https://amaugomez.github.io/mice-zero-inflated/) summarises the theory.
 
 **1. Data preparation** · [`thesis_code/00`](thesis_code/00_data_processing.R), [`01`](thesis_code/01_exploratory_analysis.R)
 - 113 → 61 → 44 numeric variables: dropped variables that did not apply to every patient (pregnancy, travel, death dates, hospital coordinates) and converted yes/no items to binary.
 - Recoded "SE IGNORA" (unknown) and unusable lab results (rejected, not received, did not amplify…) as missing, so MICE could impute them.
-- 1.65 million missing cells (4.6%) before any masking; intubation was the worst-recorded variable.
+- 1.65 million missing cells before any masking: intubation status 78% missing, anosmia and dysgeusia 42%, antimicrobial treatment 29%, lab result 14%.
 
 ![Missing-data pattern](figures/thesis/missingness_pattern.png)
 
@@ -57,12 +58,21 @@ The thesis covers the theory first (GLMs and zero-inflated mixture models, missi
 | ZIP | 20 count / 24 zero | 3.00 | 1.68 (over) | 0.98 |
 | **ZINB** | 20 count / 19 zero | **3.00** | **1.00** | **1.04** |
 
-ZINB was the only model that fixed both the dispersion and the zeros.
+ZINB was the only model that fixed both the dispersion and the zeros, and had the lowest AIC.
+
+**ZIP and ZINB.** Both mix a logit model for excess zeros (probability π) with a count model: Poisson (ZIP) or negative binomial (ZINB). ZIP: Var(Y) = (1−π)λ(1+πλ). ZINB adds a dispersion parameter α: Var(Y) = (1−π)μ(1+μ(π+α)), which absorbs the overdispersion that ZIP leaves (1.68 → 1.00).
+
+**Why a mixture and not a hurdle model?** In a hurdle model every zero comes from one binary process and the count part cannot produce zeros. Here a zero can be genuine (admitted the day symptoms began) or an artefact (admission date copied as onset date). Only a zero-inflated mixture lets a zero come from either source.
+
+![Final ZINB model](figures/zinb_coefficients.png)
+
+Intubated, immunosuppressed and cardiovascular patients were about twice as likely to have an excess zero; patients reporting symptoms much less. Sudden onset shortened the delay to admission by ~17%.
 
 **4. MICE design** · [`thesis_code/04`](thesis_code/04_masking_and_covariate_imputation.R), [`05a–c`](thesis_code/), [`predictor_matrices/`](thesis_code/predictor_matrices/)
-- All other incomplete covariates imputed with PMM using a hand-built predictor matrix.
+- Multivariate imputation: the 41 other incomplete variables (symptoms, comorbidities, treatments, intubation, lab result) imputed with PMM in the same MICE framework, using a hand-built predictor matrix.
 - Days with symptoms imputed with `mice` (PMM) or `countimp` (ZIP, ZINB). The predictor matrices encode the model-building results: **1** = predictor in both parts, **2** = count part only, **3** = zero part only.
-- 5% and 10% of the observed values masked at random (about 29,200 and 58,400 values); m = iterations = 5 and 10.
+- 5% and 10% of the observed values hidden by simple random sampling (about 29,200 and 58,400 values); m = iterations = 5 and 10.
+- About 28 hours of imputation in total on a laptop (Core i5, 16 GB RAM).
 
 **5. Convergence** — trace plots of the mean and SD of the imputed values across iterations, for every method and scenario, plus imputed-vs-observed densities:
 
@@ -87,6 +97,8 @@ ZINB was the only model that fixed both the dispersion and the zeros.
 
 ## A second look: lowest MSE ≠ best imputation
 
+*Post-thesis analysis (2026), using the imputations saved during the thesis.*
+
 ZINB fitted the data best (table above), yet ZIP had the lowest MSE. Going back to the saved imputations explains why:
 
 ![MSE vs variance](figures/mse_vs_variance.png)
@@ -103,11 +115,17 @@ ZINB fitted the data best (table above), yet ZIP had the lowest MSE. Going back 
 
 **Lesson:** judge an imputation method by whether it preserves the distribution and supports valid inference, not by point-error metrics alone.
 
-## Notes and limitations
+## What this means in practice
 
-- **Masking mechanism.** The thesis describes the masking as MAR. The masked rows were a simple random sample, which is the MCAR special case. Real missingness in surveillance data is likely MAR or MNAR (sicker patients have less complete records).
-- **Exact-match percentages** are corrected here. The thesis table divided by twice the number of masked values (e.g. ZIP 10%: 7.12% → 14.2%). Counts, errors and rankings are unchanged.
-- **One completed dataset scored.** The thesis scripts evaluate the first imputed dataset; the demo averages over all *m*.
+| Situation | Recommendation |
+|---|---|
+| First pass, large data, little time | **PMM**: fast, but the least accurate |
+| Zeros matter | **ZINB**: most zeros recovered, keeps most of the real spread |
+| Overdispersion persists after modelling the zeros | **ZINB** over ZIP |
+| Choosing between methods | Compare the variance and range of the imputations, not only the MSE |
+| Building the imputation model | Model the zero and count parts separately and pass that to MICE through the predictor matrix |
+
+**Where this applies:** any count with excess zeros and gaps: days in hospital, emergency visits, insurance claims per policy, missed payments, days of work lost in surveys.
 
 ## Repository
 
@@ -138,8 +156,13 @@ Rscript run_all.R                              # about 2 minutes
 | `R/03_imputation_methods.R` | `zip` and `zinb` methods: countimp's own if installed, otherwise a stand-in |
 | `R/04_run_experiment.R` | Covariate PMM, masking, PMM vs ZIP vs ZINB, scored over all *m* |
 | `R/05_figures.R` | Figures |
+| `R/06_thesis_figures.R` | Coefficient plot and predictor-matrix heatmap from thesis artefacts |
 
 **About `R/03`:** the thesis used the `countimp` package (Kleinke & Reinecke), which is on GitHub but not on CRAN. When it is installed, the demo uses countimp's `zip` and `zinb` methods directly. Otherwise it uses a short stand-in that follows the same steps (fit `pscl::zeroinfl` with separate count and zero predictors, draw the coefficients from their approximate posterior, then draw zero / count), so the demo runs anywhere. Demo numbers come from simulated data and are not meant to match the thesis.
+
+## How to cite
+
+See [`CITATION.cff`](CITATION.cff) (GitHub's *Cite this repository* button) or the BibTeX entry in the [report](https://amaugomez.github.io/mice-zero-inflated/#how-to-cite).
 
 ## Skills shown
 

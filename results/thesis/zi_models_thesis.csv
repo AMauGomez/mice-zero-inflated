@@ -1,0 +1,30 @@
+variable,label,zip_count,zip_zero,zinb_count,zinb_zero
+SEXO,Sex (male),0.049,,0.052,
+INTUBADO,Intubated,0.053,0.378,0.048,0.719
+DIGCLINE,Clinical diagnosis of pneumonia,0.113,-0.382,0.121,-0.6287
+EDAD,Age (years),0.001,-0.009,0.002,-0.011
+DIAGPROB_IRAG,Probable diagnosis: severe acute respiratory infection,,-0.646,,-0.806
+FIEBRE,Fever,,-0.476,,-0.639
+TOS,Cough,,-0.706,,-1.013
+ODINOGIA,Sore throat,,-0.333,,-0.996
+DISNEA,Dyspnea,0.066,-0.422,0.077,-0.599
+DIARREA,Diarrhea,0.053,-0.423,0.056,-0.876
+CEFALEA,Headache,-0.031,-0.437,-0.034,-0.820
+MIALGIAS,Myalgia,,-0.528,,-1.062
+ARTRAL,Arthralgia,0.034,,0.044,
+ATAEDOGE,General malaise,,-0.369,,-0.665
+RINORREA,Rhinorrhea,-0.042,-0.564,-0.036,-1.110
+CONJUN,Conjunctivitis,,0.227,,
+CIANOSIS,Cyanosis,-0.068,0.331,-0.082,
+INISUBIS,Sudden onset,-0.191,0.157,-0.191,
+DISGEUSIA,Dysgeusia,0.056,,0.064,
+EPOC,COPD,-0.140,,-0.148,
+INMUSUPR,Immunosuppression,,0.631,,0.752
+ENFCARDI,Cardiovascular disease,-0.045,0.481,-0.059,0.640
+OBESIDAD,Obesity,0.111,,0.119,
+INSRENCR,Chronic kidney disease,-0.0967,0.245,-0.115,
+TXANTIVI,Antiviral treatment,,-0.553,,-0.876
+VACUNADO,Influenza vaccine,-0.037,-0.324,-0.037,-0.492
+RESDEFIN,SARS-CoV-2 positive,0.122,-0.513,0.139,-0.534
+ANTIPIRETICOS,Antipyretics,0.180,-0.215,0.189,
+CONSTANTE,Intercept,1.158,0.893,1.086,1.422

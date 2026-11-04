@@ -3,5 +3,6 @@ project:
   output-dir: docs
   render:
     - index.qmd
+    - es.qmd
   resources:
     - figures/
