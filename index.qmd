@@ -396,4 +396,4 @@ demo |>
 
 ---
 
-**Thesis committee:** Dra. Lizbeth Naranjo Albarrán, Ph.D. José Antonio Perusquía Cortés, Dr. Alan Riva Palacio Cohen, Dra. María Fernanda Gil Leyva Villa. Supervisor: Dra. Ruth Selene Fuentes García.
+**Thesis committee:** Lizbeth Naranjo Albarrán (Facultad de Ciencias, UNAM), José Antonio Perusquía Cortés (Facultad de Ciencias, UNAM), Alan Riva Palacio Cohen (IIMAS, UNAM), María Fernanda Gil Leyva Villa (IIMAS, UNAM). Supervisor: Ruth Selene Fuentes García (Facultad de Ciencias, UNAM).

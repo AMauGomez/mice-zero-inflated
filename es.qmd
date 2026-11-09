@@ -73,4 +73,4 @@ Cualquier variable de conteo con exceso de ceros y datos faltantes: días de est
 
 ---
 
-**Sinodales:** Dra. Lizbeth Naranjo Albarrán, Ph.D. José Antonio Perusquía Cortés, Dr. Alan Riva Palacio Cohen, Dra. María Fernanda Gil Leyva Villa. Directora: Dra. Ruth Selene Fuentes García.
+**Sinodales:** Dra. Lizbeth Naranjo Albarrán (Facultad de Ciencias, UNAM), Dr. José Antonio Perusquía Cortés (Facultad de Ciencias, UNAM), Dr. Alan Riva Palacio Cohen (IIMAS, UNAM), Dra. María Fernanda Gil Leyva Villa (IIMAS, UNAM). Directora: Dra. Ruth Selene Fuentes García (Facultad de Ciencias, UNAM).
